@@ -1,0 +1,97 @@
+---
+title: 'Results for branching process model'
+output:
+  html_document: 
+    default
+params:
+  stanModelFile:
+    value: x
+  job_dir:
+    value: x
+  job_tag:
+    value: x
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(dplyr)
+library(data.table)
+library(reshape2)
+opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+args = params
+file.to.figure = function(name) file.path(args$job_dir, paste0(args$stanModelFile, "-",args$job_tag, "-", name, ".png"))
+```
+
+## Session info
+This file presents the results of Stan model 
+```{r, echo=FALSE}
+args$stanModelFile
+```
+with job tag
+```{r, echo=FALSE}
+args$job_tag
+```
+
+## Parameter estimates {.tabset .tabset-fade}
+
+### Transmission parameters
+
+```{r, out.width="60%", fig.show='hold', fig.align='centre', echo=FALSE}
+if(file.exists(file.to.figure("model_transmission_parameters"))){
+  knitr::include_graphics(file.to.figure("model_transmission_parameters"))
+}
+```
+
+```{r, echo = FALSE}
+file <- file.path(args$job_dir, paste0(args$stanModelFile, "-",args$job_tag, "-","summary-pars.rds") )
+if(file.exists(file)){
+  diagostics <- readRDS(file)
+  knitr::kable(diagostics)
+}
+```
+
+
+
+### Sampler diagnostics
+```{r, echo = FALSE}
+file <- file.path(args$job_dir, paste0(args$stanModelFile, "-",args$job_tag, "-","sampler_diagnostics.rds") )
+if(file.exists(file)){
+  diagostics <- readRDS(file)
+  knitr::kable(diagostics)
+}
+```
+
+### Convergence diagnostics
+
+Parameters with neff<500
+
+```{r, echo = FALSE}
+file <- file.path(args$job_dir, paste0(args$stanModelFile, "-",args$job_tag, "-","pars-with-small-neff.rds") )
+if(file.exists(file)){
+  neff <- readRDS(file)
+  neff[which(neff[,9]<500), c(1, 2, 9, 10)]
+}
+
+if(file.exists(file.to.figure("HMC-pairs_transmission_pars"))){
+  knitr::include_graphics(file.to.figure("HMC-pairs_transmission_pars"))
+}
+
+if(file.exists(file.to.figure("HMC-trace_transmission_pars"))){
+  knitr::include_graphics(file.to.figure("HMC-trace_transmission_pars"))
+}
+
+```
+
+
+## Posterior predictive check {.tabset .tabset-fade}
+
+### Generated cases
+```{r, out.width="50%", fig.show='hold', fig.align='centre', echo=FALSE}
+if(file.exists(file.to.figure("posteriorpredictivecheck_newcases_bysubtype_chaintype.png"))){
+  knitr::include_graphics(file.to.figure("posteriorpredictivecheck_newcases_bysubtype_chaintype.png"))
+}
+```
+
