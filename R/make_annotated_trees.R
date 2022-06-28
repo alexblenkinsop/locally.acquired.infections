@@ -7,7 +7,7 @@ library(glue)
 
 setwd("/Users/alexb/Box Sync/Roadmap/analysis_211101/phyloscanner/")
 trsm <- 'HSX'
-trsm <- 'MSM'
+#trsm <- 'MSM'
 
 if(trsm=='MSM'){
   rdas <- list.files(pattern = "*AmsMSM__workspace.rda")
@@ -15,11 +15,13 @@ if(trsm=='MSM'){
   rdas <- list.files(pattern = "*AmsHSX__workspace.rda")
 }
 
-setwd("/Users/alexb/Box Sync/Roadmap/analysis_211101/phyloscanner/reformat")
+outdir <- "/Users/alexb/Box Sync/Roadmap/analysis_211101/phyloscanner/long_format"
 
-walk(rdas, function(a.rda){
+#walk(rdas, function(a.rda){
+for(i in 1:length(rdas)){
   
-  load(a.rda)
+	a.rda <- rdas[i]
+  load(file.path(indir,a.rda))
   
   subtype <- str_match(a.rda, ".*_subtype_([A-Za-z0-9]+)+_wOutgroup_*")[,2]
   print(subtype)
@@ -100,6 +102,7 @@ walk(rdas, function(a.rda){
     huh2 <- c(rev(pal_npg("nrc")(8))[c(1:6,8,7)], huh[c(7,16,21,19)], "grey50") #HSX
   }else{
     huh2 <- c(pal_npg("nrc")(7), huh[c(7,16,21,19)], "grey50") #HSX
+    huh2 <- c(rev(pal_npg("nrc")(8))[c(1:6,8,7)], huh[c(7,16,21,19)], "grey50") #HSX
   }
   
   tips <- tree$tip.label %>% length()
@@ -153,7 +156,7 @@ walk(rdas, function(a.rda){
       ylim(-1, length(tree$tip.label) +1)
   }
   
-  ggsave(glue("type_{subtype}_tree_newlabels.pdf"), width = 7, height = tips*0.02, limitsize = F)
+  ggsave(file.path(outdir,glue("type_{subtype}_tree_newlabels_{trsm}.pdf")), width = 7, height = tips*0.02, limitsize = F)
   
   if(trsm=='MSM'){
     tree.display <- ggtree(tree, aes(color=new.branch.colours), size = 0.1,layout="fan", open.angle=60) +

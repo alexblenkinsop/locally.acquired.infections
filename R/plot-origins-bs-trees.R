@@ -8,15 +8,11 @@ library(ggsci)
 
 
 outdir <- '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model'
-outdir <- '/Users/alexb/Box Sync/Roadmap/RQ1 Estimating introductions/Manuscript/elife_resubmission'
 outfile.base <- outdir
+
 # plot origins
 
-#outfile <- file.path(args$outdir,'subgraphs_withmetadata_allreps.RDS')
-#saveRDS(dsubgraphtaxa, file=outfile)
-
-#dsubgraphtaxa <- readRDS('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/subgraphs_withmetadata_allreps.RDS')
-dsubgraphtaxa <- readRDS('/Users/alexb/Box Sync/Roadmap/RQ1 Estimating introductions/Manuscript/elife_resubmission/subgraphs_withmetadata_allreps.RDS')
+dsubgraphtaxa <- readRDS('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/subgraphs_withmetadata_allreps.RDS')
 
 dat0 <- subset(dsubgraphtaxa,REP=='000')
 setnames(dat0,'ORIGINHOST','ORIGIN0')
