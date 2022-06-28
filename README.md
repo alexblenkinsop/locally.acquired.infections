@@ -20,3 +20,5 @@ The analysis is run in 3 stages:
 
 ### Estimating locally acquired infections
 1) submit-job.R - Writes a shell script to run the analysis on a computer cluster including preparing the stan data (stan-make-data.R), sampling using cmdstan, and post-processing
+
+[![DOI](https://zenodo.org/badge/504520616.svg)](https://zenodo.org/badge/latestdoi/504520616)
