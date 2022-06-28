@@ -45,15 +45,7 @@ args <- list(
 	index_flag = 1,
 	upper.bound.multiplier = 10,
 	last_case = 10,
-	keep_prop_dead_chains = 0,
-	rho1=0,
 	infdate=1,
-	p_undiag=1,
-	p_undiag_b=0.13,
-	p_undiag_nb=0.18,
-	rho="infdate",
-	pre="infdate",
-	em="infdate",
 	nonB=1
 )
 

@@ -446,54 +446,8 @@ map_mwmb_regions= function(dat){
   
   return(dat)
 }
-calculate_sampling_fraction = function(dind,tmp,infdate,start_d,end_d,trsm,p_undiag,p_undiag_b,p_undiag_nb,p_undiagnosed){
-  # exclude those individuals on ART by start date (also excluded from subgraph sizes)
-  dind$prestartd <- 0
-  if(infdate==1){
-    dind$prestartd[dind$INF_D<start_d & dind$RECART_D<start_d & !is.na(dind$RECART_D)] <-	1
-  }else{
-    dind$prestartd[dind$HIV1_POS_D<start_d & dind$RECART_D<start_d & !is.na(dind$RECART_D)] <-	1
-  }
-  dat <- subset(dind,prestartd==0)
-  
-  # sampling fraction for new cases since start_d
-  if(infdate==1){
-    dat <- subset(dat,CITY=='Amsterdam' & TRANSM==trsm & prestartd==0 & INF_D>=start_d & INF_D<=end_d)
-  }else{
-    dat <- subset(dat,CITY=='Amsterdam' & TRANSM==trsm & prestartd==0 & HIV1_POS_D>=start_d & HIV1_POS_D<=end_d)
-  }
-  
-  # # sequenced = number of new cases in subgraph data
-  tmp[,f:=jcases * N]
-  seq <- sum(tmp$f)
-  # 
-  inf <- length(unique(dat$ID)) 
 
-  dat[DUTCH_BORN=='Unknown', DUTCH_BORN:= 'Other']
-  p_nl <- dat[, list(p=length(ID)),by=c('TRANSM','DUTCH_BORN')]
-  p_nl <- subset(p_nl,DUTCH_BORN!='Unknown')
-  p_nl <- p_nl[, list(DUTCH_BORN=DUTCH_BORN,p_nl=p/sum(p)),by=c('TRANSM')]
-  p_nl <- p_nl[, list(p_nl=sum(p_nl)),by=c('TRANSM','DUTCH_BORN')]
-  
-  # count infected including the index cases (to estimate importations later)
-  #dat <- subset(dind,CITY=='Amsterdam' & TRANSM==trsm & prestartd==0 & HIV1_POS_D<=end_d)
-  #inf_m <- length(unique(dat$ID)) 
-  
-  # update estimated number infected using prop undiagnosed
-  if(p_undiag!=0){
-    #inf_b <- inf*p_st$p_st[p_st$ST=='B']
-    #inf_nb <- inf*p_st$p_st[p_st$ST=='Non-B']
-    #inf <- round(inf_b/(1-p_undiag_b),digits=0) + round(inf_nb/(1-p_undiag_nb),digits=0)
-
-    inf_nl <- length(unique(dat$ID[dat$BIRTH_COUNTRY=='Netherlands']))
-    inf_nonnl <- length(unique(dat$ID[dat$BIRTH_COUNTRY!='Netherlands']))
-    inf <- round(inf_nl/(1-p_undiag_b),digits=0) + round(inf_nonnl/(1-p_undiag_nb),digits=0)
-  }
-  
-  return(list(seq,inf))
-}
-
-calculate_sampling_fraction_mwmb = function(infile.geo,dind,tmp,infdate,start_d,end_d,trsm,p_undiag,p_undiag_b,p_undiag_nb,p_undiagnosed){
+calculate_sampling_fraction_mwmb = function(infile.geo,dind,tmp,infdate,start_d,end_d,trsm,p_undiagnosed){
   
   # exclude those individuals virally suppressed by start date (also excluded from subgraph sizes)
   dind$prestartd <- 0
@@ -520,52 +474,19 @@ calculate_sampling_fraction_mwmb = function(infile.geo,dind,tmp,infdate,start_d,
   pr <- dat[, list(diag=length(ID)),by=c('TRANSM','mwmb')]
   pr <- merge(pr,p_undiagnosed,by=c('mwmb'),all=T)
   # update estimated number infected using prop undiagnosed
-  if(p_undiag!=0){
-    pr[, inf:= round(diag/(1-du),digits=0) ]
-    inf <- sum(pr$inf)
-  }
-  
+  pr[, inf:= round(diag/(1-du),digits=0) ]
+  inf <- sum(pr$inf)
+
   return(list(seq,inf))
 }
 
-generate_stan_data_sbt = function(trsm, tmp, dind, seq, inf, p_undiagnosed, start_d, end_d, max_icases, max_jcases, upper.bound.multiplier, index_flag, infdate, p_undiag){
+generate_stan_data_sbt = function(trsm, tmp, dind, seq, inf, p_undiagnosed, start_d, end_d, max_icases, max_jcases, upper.bound.multiplier, index_flag, infdate){
   
   # max icases 
   max_icases = max(tmp$icases[which(tmp$icases <= max_icases & tmp$jcases <= max_jcases)]) # trim index cases  
   # max jcases 
   max_jcases =  max(tmp$jcases[which(tmp$jcases <= max_jcases & tmp$icases <= max_icases)]) # trim secondary cases 
   cat("\nmaximum index cases ", max_icases, ' and maximum secondary cases ', max_jcases, '\n')
-  
-  # exclude those individuals on ART by start date (also excluded from subgraph sizes)
-  #dind$prestartd <- 0
-  #if(infdate==1){
-  #  dind$prestartd[dind$INF_D<start_d & dind$RECART_D<start_d & !is.na(dind$RECART_D)] <-	1
-  #}else{
-  #  dind$prestartd[dind$HIV1_POS_D<start_d & dind$RECART_D<start_d & !is.na(dind$RECART_D)] <-	1
-  #}
-  #dat <- subset(dind,prestartd==0)
-  
-  # sampling fraction for new cases since start_d
-  #if(infdate==1){
-  #  dat <- subset(dat,CITY=='Amsterdam' & TRANSM==trsm & prestartd==0 & INF_D>=start_d & INF_D<=end_d)
-  #}else{
-  #  dat <- subset(dat,CITY=='Amsterdam' & TRANSM==trsm & prestartd==0 & HIV1_POS_D>=start_d & HIV1_POS_D<=end_d)
-  #}
-  
-  # # sequenced = number of new cases in subgraph data
-  #tmp[,f:=jcases * N]
-  #seq <- sum(tmp$f)
-  # 
-  #inf <- length(unique(dat$ID)) 
-  
-  # count infected including the index cases (to estimate importations later)
-  #dat <- subset(dind,CITY=='Amsterdam' & TRANSM==trsm & prestartd==0 & HIV1_POS_D<=end_d)
-  #inf_m <- length(unique(dat$ID)) 
-  
-  # update estimated number infected using prop undiagnosed
-  #if(p_undiag!=0){
-    #inf <- round(inf/(1-p_undiagnosed),digits=0)
-  #}
   
   # subtypes
   subtypes = unique(tmp$ST)
