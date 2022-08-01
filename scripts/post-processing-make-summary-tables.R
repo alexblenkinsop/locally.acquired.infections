@@ -2,7 +2,7 @@
 # 
 ###############################################################################
 
-cat(" \n -------------------------------- \n \n Make tables.R \n \n -------------------------------- \n")
+cat(" \n -------------------------------- \n \n Make summary tables.R \n \n -------------------------------- \n")
 
 suppressMessages(library(data.table, quietly = TRUE))
 suppressMessages(library(dplyr, quietly = TRUE))
@@ -82,7 +82,6 @@ tmp <- load(file.path(args_dir$out_dir, infile.stanin))
 stopifnot(c('args','stan.data')%in%tmp)
 
 
-
 cat('\nSummarise average size of subgraph...')
 
 ## Average size of subgraph
@@ -90,31 +89,20 @@ cs_obs <- as.data.table(reshape2:: melt(stan.data$cs_obs))
 setnames(cs_obs, 1:4, c('index_cases','new_cases','subtype','freq'))
 # shift index cases for m=0 row
 cs_obs$index_cases <- cs_obs$index_cases - 1
-# if index case assumed part of subgraph make 1 new case the index case
-#if(stan.data$index_flag==1){
-#	cs_obs[index_cases==0,new_cases:= as.integer(new_cases - 1)]
-#}
 # correct generated cases as col 1 = 0
 cs_obs[,new_cases:= new_cases - 1]
 # only keep non-negative cases (shouldn't have any)
 cs_obs <- subset(cs_obs,new_cases>=0)
-# correct index cases for subgraphs starting since 2010 to 1
-#cs_obs[index_cases==0,index_cases:=1]
 # aggregate subgraphs post-2010 with the rest
 cs_obs <- cs_obs[, list(freq=sum(freq)),by=c('subtype','index_cases','new_cases')]
 cs_obs[, N:=new_cases*freq]
 
 cat('\nSummarise predicted chains...')
-cs_actual <- readRDS(file=paste0(outfile.base,'-','predicted_chains.rds'))
-unobs_N <- readRDS(file=paste0(outfile.base,'-','unobserved_chains.rds'))
+cs_actual <- readRDS(file=paste0(outfile.base,'-','preexisting_chain_sizes.rds'))
+unobs_N <- readRDS(file=paste0(outfile.base,'-','emergent_chain_sizes.rds'))
 
-#dall <- rbind(subset(cs_actual,select=c('iteration','subtype','size')),subset(unobs_N,select=c('iteration','subtype','size')))
-##du <- unobs_N$size[unobs_N$subtype]
-#mean_act <- dall[, list(size = mean(size)),by=c('subtype')]
 dall <- rbind(subset(cs_actual,select=c('iteration','subtype','new_cases')),subset(unobs_N,select=c('iteration','subtype','new_cases')))
 mean_act <- dall[, list(new_cases = mean(new_cases)),by=c('subtype')]
-#mean_a <- dall[, list(mean_cases= quantile(new_cases, prob=ps,na.rm=T),
-#													q_label=p_labs),by=c('subtype')]		
 
 dc <- cs_actual[, list(N=length(subgraph)),by=c('iteration','subtype')]
 du <- unobs_N[, list(N_u=length(subgraph)),by=c('iteration','subtype')]
@@ -161,23 +149,18 @@ sbt <- list()
 for(st in sbts){
 	stid <- pars.basic$ds$subtypes[pars.basic$ds$subtypes_name==st]
 	
-	# mean size of obs subgraphs
+	# mean new cases in obs subgraphs
 	ds <- subset(cs_obs,subtype==pars.basic$ds$subtypes[pars.basic$ds$subtypes_name==st])
-	#ds[, size:=index_cases+new_cases]
-	#d <- rep(ds$size, ds$freq)
 	d <- rep(ds$new_cases, ds$freq)
 	
-	# mean size of actual chains
-	#mean_a <- mean_act$size[mean_act$subtype==stid]
+	# mean new cases in predicted chains
 	mean_a <- mean_act$new_cases[mean_act$subtype==stid]
 	
 	sbt[[st]] <- data.table(subtype=st,
 													obs_cases=sum(cs_obs$N[cs_obs$subtype==stid]),
 									 sgs_n=sum(stan.data$cs_obs[,,stid]),
-									 #sgs_size=round(mean(d),2),
 									 sgs_newcases=round(mean(d),2),
 									 chains_n=par[subtypes_name==st,L],
-									 #chains_size=round(mean_a,2),
 									 chains_newcases=round(mean_a,2),
 									 Rt=Rt[subtypes_name==st,L],
 									 vmr=vmr[subtypes_name==st,L],

@@ -1,8 +1,8 @@
-# importations by subtype.R
+#
 # 
 ###############################################################################
 
-cat(" \n -------------------------------- \n \n Running importations by subtype.R \n \n -------------------------------- \n")
+cat(" \n -------------------------------- \n \n Running locally-acquired-infections.R \n \n -------------------------------- \n")
 
 suppressMessages(library(data.table, quietly = TRUE))
 suppressMessages(library(dplyr, quietly = TRUE))
@@ -12,13 +12,13 @@ suppressMessages(library(ggplot2, quietly = TRUE))
 if(1){
 	args_dir <- list()
 	args_dir[['stanModelFile']] <- 'branching_process_210810b_cmdstan'
-	args_dir[['analysis']] <- 'analysis_200917'
+	args_dir[['analysis']] <- 'analysis_211101'
 	args_dir[['trsm']] <- 'MSM'
 	args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
-	args_dir[['job_tag']] <- paste0('undiagnosed_weighted_inf_rate_2014-2018_',args_dir[['trsm']])
+	args_dir[['job_tag']] <- paste0('test_refactor_gqs_2014-2018_',args_dir[['trsm']])
 	args_dir[['out_dir']] <- paste0('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/branching_process_210810b_cmdstan-',args_dir[['job_tag']])   
 	args_dir[['with_subtypes']] <- 1
-	args_dir[['source_dir']] <- '~/git/bpm'
+	args_dir[['source_dir']] <- '~/git/locally.acquired.infections-private'
 }
 
 # save args for report before loading those from running session 
@@ -69,6 +69,8 @@ file <- paste0(outfile.base,'-stanout-bplace-gqs.RDS')
 cat("\n read RDS:", file)
 fit.bplace <- readRDS(file)
 
+ps <- c(0.5, 0.025, 0.975)
+p_labs <- c('M','CL','CU')
 
 cat(" \n -------------------------------- Reading data -------------------------------- \n")
 
@@ -81,21 +83,19 @@ stopifnot(length(infile.stanin)<=1)
 tmp <- load(file.path(args_dir$out_dir, infile.stanin))
 stopifnot(c('args','stan.data')%in%tmp)
 
-
-# get loc labels
-## read subgraphs with metadata
-cat('\nReading subgraph data...')
+# filenames
 infile.subgraphs <- file.path(args_dir$out_dir,'subgraphs_withmetadata.RDS')
+infile.bplaces <- file.path(args_dir$source_dir,'data','patient_data',paste0('birthplaces_subtype_',start_d,'.csv'))
 
+cat('\nReading subgraph data...')
 dsubgraphtaxa <- readRDS(infile.subgraphs)
 
-if(args$infdate==1){
-	dsubgraphtaxa[INF_D>=start_d & INF_D<end_d, keep:=1]
-}else{
-	dsubgraphtaxa[HIV1_POS_D>=start_d & HIV1_POS_D<end_d, keep:=1]
-}
+# select patients in study window
+dsubgraphtaxa[inf_after_startd==1 & inf_after_endd==0, keep:=1]
+
 dsubgraphtaxa <- subset(dsubgraphtaxa, SELECT==paste0('Ams',args$trsm) & keep==1)
 
+dsubgraphtaxa[, TRANSM:= gsub('Ams','',SELECT)]
 dsubgraphtaxa$ORIGIN <- dsubgraphtaxa$ORIGINHOST
 dsubgraphtaxa$ORIGIN[is.na(dsubgraphtaxa$ORIGIN)] <- 'Unknown'
 do <- subset(dsubgraphtaxa,TRANSM==args$trsm)
@@ -108,6 +108,7 @@ da <- do[, list(N=sum(N)), by=c('ORIGIN','TRM_GROUP','ST')]
 da <- merge(da, da[, list(TOTAL=sum(N)), by=c('TRM_GROUP','ST')], by=c('TRM_GROUP','ST'))
 tmp <- dcast.data.table(da,ORIGIN~ST,value.var='N')
 
+# get labels for origins of chains which match the stan input data
 loc <- data.table(location=seq(1:length(unique(tmp$ORIGIN))),
 									loc_label=unique(tmp$ORIGIN))
 
@@ -136,13 +137,13 @@ cs_em <- as.data.table( reshape2::melt( cs_em ) )
 setnames(cs_em, 1:5, c('iteration','subtype','subgraph','index_cases','new_cases'))
 cs_em <- subset(cs_em,is.finite(new_cases))
 cs_em <- subset(cs_em,new_cases>0)
-# include index case in new cases (don't subtract 1)
+# size of emergent chains includes index case in new cases
 cs_em[, size:= index_cases + new_cases]
 cs_em[, chains:= 'emergent']
 
 cat('\nSaving predicted chain sizes...')
-saveRDS(cs_ex,file=paste0(outfile.base,'-','predicted_chains.rds'))
-saveRDS(cs_em,file=paste0(outfile.base,'-','unobserved_chains.rds'))
+saveRDS(cs_ex,file=paste0(outfile.base,'-','preexisting_chain_sizes.rds'))
+saveRDS(cs_em,file=paste0(outfile.base,'-','emergent_chain_sizes.rds'))
 
 cat('\nGet number of cases per subtype...')
 st <- merge(cs_ex,cs_em,by=c("iteration","subtype","subgraph","index_cases","new_cases",  
@@ -154,8 +155,6 @@ N_sgs_em <- as.data.table( reshape2::melt( N_sgs_e ) )
 setnames(N_sgs_em, 1:4, c('iteration','subtype','index_case','NT'))
 # just keep index case==1
 N_sgs_em <- subset(N_sgs_em,index_case==1,select=c('iteration','subtype','NT'))
-# sum over index cases
-#N_sgs_em <- N_sgs_em[, list(NT=sum(N)),by=c('iteration','subtype')]
 
 N_sgs_u <- as.data.table( reshape2::melt( N_sgs_unobs ) )
 setnames(N_sgs_u, 1:4, c('iteration','subtype','index_case','N_u'))
@@ -169,26 +168,20 @@ cs_ex <- cs_ex[, list(new_cases=sum(new_cases)),by=c('iteration','subtype','chai
 cs_em <- cs_em[, list(new_cases=sum(new_cases)),by=c('iteration','subtype','chains')]
 
 # combine pre-exisiting and emergent subgraphs
-# add new cases per MC sample
+# sum new cases per MC sample
 dt <- rbind(cs_ex,cs_em)
-
 dt <- dt[, list(NI=sum(new_cases)),by=c('iteration','subtype')]
 
 # add col for number of emergent subgraphs
 dt <- merge(dt,N_sgs_em,by=c('iteration','subtype'),all.x=T)
 
-# sum new cases per MC sample and subtype
-#dt <- dt[, list(NI=sum(new_cases)),by=c('iteration','subtype')]
-
+# add subtype labels
 dt <- merge(dt, pars.basic$ds,by.x='subtype',by.y='subtypes')
 
 cat('\nCalculate importations...')
 
 # number of emergent chains/number of new cases
 dt[,importations:= NT/NI]
-
-ps <- c(0.5, 0.025, 0.975)
-p_labs <- c('M','CL','CU')
 
 dt$TRM <- args_dir$trsm
 
@@ -258,6 +251,7 @@ make_gqs_plots_st(ans,
 
 saveRDS(ans,file=paste0(outfile.base,'-','origins_sbt_gqs.RDS'))
 
+cat('\nCalculate local infections...')
 # sum over Ams/non-Ams origin to get subgraphs of external origins
 do[, loc_Ams:= as.character(factor(grepl('Ams',loc_label), levels=c(TRUE,FALSE), labels=c('Ams','External')))]
 
@@ -266,8 +260,7 @@ do <- do[, list(N=length(subgraph)),by=c('iteration','subtype','loc_Ams')]
 do <- merge(do, tot, by=c('iteration','subtype'),all.x=T)
 do[, p:=N/total]
 
-##### add origins to estimate % local infections
-#ex <- merge(dt,subset(ex,loc_Ams=='External'),by=c('iteration','subtype'))
+# add origins
 ex <- merge(dt,subset(do,loc_Ams=='External', select=c('subtype','iteration','p')),by=c('iteration','subtype'))
 ex[, ext_imp:= p * importations]
 ex[, inf_Ams:= 1 - ext_imp]
@@ -306,45 +299,11 @@ saveRDS(dt,file=paste0(outfile.base,'-','estimate_importations_sbt_gqs.RDS'))
 
 cat('\nCalculate local infections by migrant groups...')
 
-geo <- data.table(read.csv('/rds/general/project/ratmann_roadmap_data_analysis/live/misc/NEWGEO.csv'))
-geo[geo$Alpha_2_code %in%c('AM','AZ','BY','GE','MD','RU','UA'),WRLD:='EEurope']
-geo[geo$Alpha_2_code %in%c('AU','NZ'),WRLD:='Oceania']
+st_mwmb <- data.table(read.csv(infile.bplaces))
 
-load(file='/rds/general/project/ratmann_roadmap_data_analysis/live/analysis_200917/misc/200917_sequence_labels.rda')
-dseq <- merge(dseq,geo,by.x='ORIGIN',by.y='Alpha_2_code',all.x=T)
-setnames(dseq,'ORIGIN','BIRTH_COUNTRY_ISO')
-dsubgraphtaxa <- merge(dsubgraphtaxa,unique(subset(dseq,select=c('PATIENT','BIRTH_COUNTRY_ISO','WRLD'))),by.x='ID',by.y='PATIENT',all.x=T)
-
-## msm
-dsubgraphtaxa[TRANSM=='MSM', mwmb:="Other"]
-dsubgraphtaxa[TRANSM=='MSM' & BIRTH_COUNTRY %in% c("Netherlands"), mwmb:="NL"]
-# western countires (non-NL)
-dsubgraphtaxa[TRANSM=='MSM' & WRLD %in% c("WEurope","NorthAm","Oceania") & BIRTH_COUNTRY!='Netherlands', mwmb:="G1"]
-# eastern and central europe
-dsubgraphtaxa[TRANSM=='MSM' & WRLD %in% c("EEurope", "CEurope"), mwmb:="G2"]
-# caribbean and south america
-dsubgraphtaxa[TRANSM=='MSM' & WRLD %in% c("LaAmCar","FormerCurrDutchColonies"), mwmb:="G3"]
-
-## hsx
-dsubgraphtaxa[TRANSM=='HSX', mwmb:="Other"]
-dsubgraphtaxa[TRANSM=='HSX' & BIRTH_COUNTRY %in% c("Netherlands"), mwmb:="NL"]
-# sub-saharan africa
-dsubgraphtaxa[TRANSM=='HSX' & LOC_BIRTH %in% c("Africa"), mwmb:="G4"]
-# caribbean and south america
-dsubgraphtaxa[TRANSM=='HSX' & LOC_BIRTH %in% c("LaAmCar","FormerCurrDutchColonies"), mwmb:="G5"]
-
-
-#dsubgraphtaxa <- subset(dsubgraphtaxa,TRANSM==args_dir$trsm & SELECT!='Ams' & REP=='000')
-#if(args$infdate==1){
-#	dsubgraphtaxa <- subset(dsubgraphtaxa,INF_D>=start_d & INF_D<end_d)
-#}else{
-#	dsubgraphtaxa <- subset(dsubgraphtaxa,HIV1_POS_D>=start_d & HIV1_POS_D<end_d)
-#}
-
-# for each strata, what is the proportion of each subtype
-st_mwmb <- dsubgraphtaxa[, list(p=length(ID)),by=c('mwmb','ST')]
-st_mwmb <- subset(st_mwmb,!is.na(mwmb))
-st_mwmb <- st_mwmb[, list(ST=ST,p_st=p/sum(p)),by=c('mwmb')]
+# for each strata, calculate proportion of each subtype
+st_mwmb <- subset(st_mwmb,TRM_GROUP==args_dir$trsm)
+st_mwmb <- st_mwmb[, list(ST=ST,p_st=N/sum(N)),by=c('mwmb')]
 
 ## load birth places from GQs
 bp <- as.data.table( reshape2::melt( fit.bplace ) )
@@ -359,8 +318,6 @@ labs <- data.table(mwmb=sort(unique(st_mwmb$mwmb)),bplace=seq(1:length(unique(st
 bp <- merge(bp, labs,by='bplace',all=T)
 
 ex <- merge(ex,bp,by=c('iteration','subtypes_name','subtype'),all=T,allow.cartesian=T)
-#ex <- merge(ex,st_mwmb,by.x=c('subtypes_name'),by.y=('ST'),all=T,allow.cartesian=T)
-#ex <- merge(ex,st,by=c('iteration','subtype'),all=T)
 ex[is.nan(inf_Ams),inf_Ams:=0]
 
 mwmb <- ex[, list(inf_Ams=sum(inf_Ams*p_st)),by=c('iteration','mwmb')]
@@ -389,10 +346,6 @@ saveRDS(ans,file=paste0(outfile.base,'-','local_infections_mwmb.RDS'))
 cat('\nCalculate local infections by risk groups...')
 
 ex <- readRDS(file=paste0(outfile.base,'-','external_importations_sbt_samples.RDS'))
-#st <- dsubgraphtaxa[, list(p=length(ID)),by=c('TRANSM','ST')]
-#st <- st[, list(ST=ST,p_st=p/sum(p)),by=c('TRANSM')]
-
-#ex <- merge(ex,st,by.x=c('subtypes_name'),by.y=('ST'),all=T,allow.cartesian=T)
 ex <- merge(ex,st,by=c('iteration','subtype'),all=T)
 ex[is.nan(inf_Ams),inf_Ams:=0]
 

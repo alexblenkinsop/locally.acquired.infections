@@ -10,16 +10,14 @@ suppressMessages(library(ggsci, quietly = TRUE))
 if(0){
 	args_dir <- list()
 	args_dir[['stanModelFile']] <- 'branching_process_210810b_cmdstan'
-	args_dir[['analysis']] <- 'analysis_200917'
-	args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
+	args_dir[['analysis']] <- 'analysis_211101'
 	args_dir[['trsm']] <- 'MSM'
-	args_dir[['period']] <- '2014-2018'
-	args_dir[['job_name']] <- 'undiagnosed_bymonthyear'
-	args_dir[['job_tag']] <- paste0(args_dir[['job_name']],'_',args_dir[['period']],'_',args_dir[['trsm']])
-	args_dir[['out_dir']] <- paste0('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/',args_dir[['stanModelFile']],'-',args_dir[['job_tag']])
-	args_dir[['with_subtypes']] <- 1
-	args_dir[['source_dir']] <- '~/git/bpm'
-	args_dir[['infdate']] <- 1
+	args_dir[['job_tag']] <- paste0('test_refactor_gqs_2014-2018_',args_dir[['trsm']])
+#	args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
+#	args_dir[['out_dir']] <- paste0('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/branching_process_210810b_cmdstan-',args_dir[['job_tag']])   
+	args_dir[['in_dir']] <- '/Users/alexb/Documents/Roadmap/refactor_code'
+	args_dir[['out_dir']] <- paste0('/Users/alexb/Documents/Roadmap/refactor_code/branching_process_model/branching_process_210810b_cmdstan-',args_dir[['job_tag']])   
+	args_dir[['source_dir']] <- '~/git/locally.acquired.infections-private'
 	args_dir[['start_d']] <- 2014
 	args_dir[['end_d']] <- 2019
 }
@@ -98,17 +96,12 @@ infile.subgraphs <- file.path(args_dir$out_dir,'subgraphs_withmetadata.RDS')
 dsubgraphtaxa <- readRDS(infile.subgraphs)
 
 cat(paste('\n Subset data to individuals diagnosed between ',args_dir$start_d,'-',args_dir$end_d,' \n'))
-# look at origins in time window of analysis
-# keep only at new cases since start date
-if(args_dir$infdate==1){
-	dsubgraphtaxa[INF_D>=args_dir$start_d & INF_D<args_dir$end_d, keep:=1]
-}else{
-	dsubgraphtaxa[HIV1_POS_D>=args_dir$start_d & HIV1_POS_D<args_dir$end_d, keep:=1]
-}
+# select patients in study window
+dsubgraphtaxa[inf_after_startd==1 & inf_after_endd==0, keep:=1]
 
-dsubgraphtaxa <- subset(dsubgraphtaxa, SELECT==paste0('Ams',args_dir[['trsm']]) & keep==1)
+dsubgraphtaxa <- subset(dsubgraphtaxa, SELECT==paste0('Ams',args$trsm) & keep==1)
 
-
+dsubgraphtaxa[, TRANSM:= gsub('Ams','',SELECT)]
 dsubgraphtaxa$ORIGIN <- dsubgraphtaxa$ORIGINHOST
 dsubgraphtaxa$ORIGIN[is.na(dsubgraphtaxa$ORIGIN)] <- 'Unknown'
 do <- dsubgraphtaxa
@@ -136,18 +129,7 @@ cat(" \n -------------------------------- summarise predicted origins ----------
 
 cat('\nSummarise predicted origins...')
 
-dsubgraphtaxa <- readRDS(infile.subgraphs)
-
-if(args$infdate==1){
-	dsubgraphtaxa[INF_D>=args_dir$start_d & INF_D<args_dir$end_d, keep:=1]
-}else{
-	dsubgraphtaxa[HIV1_POS_D>=args_dir$start_d & HIV1_POS_D<args_dir$end_d, keep:=1]
-}
-dsubgraphtaxa <- subset(dsubgraphtaxa, SELECT==paste0('Ams',args$trsm) & keep==1)
-
-dsubgraphtaxa$ORIGIN <- dsubgraphtaxa$ORIGINHOST
-dsubgraphtaxa$ORIGIN[is.na(dsubgraphtaxa$ORIGIN)] <- 'Unknown'
-do <- subset(dsubgraphtaxa,TRANSM==args$trsm)
+do <- dsubgraphtaxa
 do <- do[,list(N=length(FULL_NAME)),by=c('ORIGIN','TRANSM','ST','ST_CLADE')]
 setnames(do,c('TRANSM'),c('TRM_GROUP'))
 

@@ -10,9 +10,9 @@ suppressMessages(library(abind, quietly = TRUE))
 # for testing
 if(0){
 	args_dir <- list()
-	args_dir[['stanModelFile']] <- 'branching_process_210414r_cmdstan'
-	args_dir[['out_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/branching_process_210414r_cmdstan-rho_infd_pre_infd_em_infd_1000sg_2015-2019_MSM'
-	args_dir[['job_tag']] <- 'rho_infd_pre_infd_em_infd_1000sg_2015-2019_MSM'
+	args_dir[['stanModelFile']] <- 'branching_process_210810b_cmdstan'
+	args_dir[['out_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/branching_process_210810b_cmdstan-test_refactor_gqs_2014-2018_MSM'
+	args_dir[['job_tag']] <- 'test_refactor_gqs_2014-2019_MSM'
 	args_dir[['numb_chains']] <- 3
 	args_dir[['source_dir']] <- '~/git/bpm'
 	args_dir[['trsm']] <- 'MSM'
@@ -158,7 +158,6 @@ basic <- list(subtypes=ds$subtypes,
 							icases_map=icases_map,
               stan.data=stan.data,
               freqs=freqs,
-              dind=dind,
               cases=cases,
               with_subtypes=with_subtypes,
               outfile.base=outfile.base,

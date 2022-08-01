@@ -46,9 +46,9 @@ args_dir[['job_tag']] <- paste0(args_dir[['job_name']],'_',args_dir[['period']],
 outfile.base <- paste0(args_dir$out_dir, "/",
 											 args_dir$stanModelFileMSM , "-", args_dir$job_tag)
 msm1 <- readRDS(file=paste0(outfile.base,'-','obs_actual_cs_distribution_long.rds'))
-msm1[, lab:='MSM 2014-2019']
+msm1[, lab:='MSM 2014-2018']
 msm1_a <- readRDS(file=paste0(outfile.base,'-','obs_actual_cs_distribution_long_all.rds'))
-msm1_a[, lab:='MSM 2014-2019']
+msm1_a[, lab:='MSM 2014-2018']
 
 #### HSX
 args_dir[['out_dir']] <- paste0(args_dir$in_dir,'/branching_process_model/',args_dir[['stanModelFileHSX']],'-',args_dir[['job_name']],'_',args_dir[['period']],'_HSX')
@@ -58,9 +58,9 @@ outfile.base <- paste0(args_dir$out_dir, "/",
 											 args_dir$stanModelFileHSX , "-", args_dir$job_tag)
 
 hsx1 <- readRDS(file=paste0(outfile.base,'-','obs_actual_cs_distribution_long.rds'))
-hsx1[, lab:='HSX 2014-2019']
+hsx1[, lab:='HSX 2014-2018']
 hsx1_a <- readRDS(file=paste0(outfile.base,'-','obs_actual_cs_distribution_long_all.rds'))
-hsx1_a[, lab:='HSX 2014-2019']
+hsx1_a[, lab:='HSX 2014-2018']
 
 cat(" \n -------------------------------- Combine analyses -------------------------------- \n")
 
@@ -75,7 +75,6 @@ setnames(QN_L,c('QN','p'),c('QN_L','p_L'))
 QN_U <- subset(all,P=='p0.975',select=c('lab','analysis','chains','new_cases','QN','p'))
 setnames(QN_U,c('QN','p'),c('QN_U','p_U'))
 
-#tot <- all[, list(new_cases='Total',QN=QN_c[1]),by=c('lab','analysis','chains','P')]
 tot <- all[, list(new_cases='Total',QN=tot[1]),by=c('lab','analysis','chains','P')]
 tot_grew <- all[, list(new_cases='Total_grew',QN=tot_grew[1]),by=c('lab','analysis','chains','P')]
 tot <- rbind(tot,tot_grew)
@@ -101,17 +100,17 @@ all <- merge(all,dg,by=c('lab','analysis','chains','P'),all.x=T)
 all[chains=='emergent',tot_grew:=tot_grew_em]
 all[, pct:=paste0(round(tot_grew/tot*100,d=0),"%")]
 all$chaintype <- factor(all$chains,levels=c('pre-existing','emergent'),labels=c('pre-existing','emergent'))
-all$trsmlab <- factor(all$lab,levels=c('MSM 2014-2019','HSX 2014-2019'),labels=c('Amsterdam MSM','Amsterdam heterosexual'))
+all$trsmlab <- factor(all$lab,levels=c('MSM 2014-2018','HSX 2014-2018'),labels=c('Amsterdam MSM','Amsterdam heterosexual'))
 
 col_pal = pal_npg("nrc")(2)
 
 plot <- ggplot(data=subset(all,analysis=='predicted' & P=='p0.5')) +
 	geom_bar(aes(x=chaintype,y=tot, fill=col_pal[2]), stat="identity", position ="identity", alpha=1) +
 	geom_bar(aes(x=chaintype,y=tot_grew, fill=col_pal[1]), stat="identity", position="identity", alpha=1) +
-	geom_text(aes(x=chaintype,y=tot_grew,label=pct), position=position_dodge(width=0.9), vjust=-0.75,size=8) +
+	#geom_text(aes(x=chaintype,y=tot_grew,label=pct), position=position_dodge(width=0.9), vjust=-0.75,size=8) +
 	facet_grid(.~trsmlab,scales="free") +
 	scale_y_continuous(expand = expansion(mult = c(0, .2)))  +
-	labs(x='',y="Number of new infections \n 2014-2019",fill="") +
+	labs(x='',y="Number of new infections \n 2014-2018",fill="") +
 	theme_bw(base_size=18) +
 	theme(legend.position="bottom",
 				strip.background=element_blank(),
@@ -119,14 +118,14 @@ plot <- ggplot(data=subset(all,analysis=='predicted' & P=='p0.5')) +
 	scale_fill_manual(values = c( col_pal[2], col_pal[1]),
 										labels = c("Total chains", "Chain which grew")) +
 	guides(fill=guide_legend(override.aes=list(fill=c("Total chains"=col_pal[2],"Chain which grew"=col_pal[1]))))
-ggsave(file=paste0(outfile.base,'-chains_grew_2014-2019.png'),plot,w=15, h=8)
+ggsave(file=paste0(outfile.base,'-chains_grew.png'),plot,w=15, h=8)
 cat(" \n -------------------------------- Make table -------------------------------- \n")
 
 tmp <- dcast.data.table(subset(all,P=="p0.5"), lab + new_cases ~ chains+analysis, value.var='N')
 tmp <- subset(tmp,new_cases %in% c('0','1','2','3','4','5','6','7+'))
 tmp <- tmp[,c('lab', 'new_cases','pre-existing_observed','pre-existing_predicted','emergent_observed','emergent_predicted')]
 tmp <- merge(tmp,tot,by=c('lab','new_cases','pre-existing_observed','pre-existing_predicted','emergent_observed','emergent_predicted'),all=T)
-tmp$lab <- factor(tmp$lab,levels=c('MSM 2014-2019','HSX 2014-2019'))
+tmp$lab <- factor(tmp$lab,levels=c('MSM 2014-2018','HSX 2014-2018'))
 tmp$new_cases <- factor(tmp$new_cases,levels=c('0','1','2','3','4','5','6','7+','Total_grew','Total'))
 tmp <- tmp[order(lab,new_cases),]
 
@@ -149,14 +148,14 @@ tmp <- subset(tmp,new_cases %in% c('0','1','2','3','4','5','6','7+'))
 
 dat <- subset(all,P=='p0.5' & new_cases %in% c('0','1','2','3','4','5','6','7+'))
 dat[,trsm:='Amsterdam MSM']
-dat[lab %in% c('HSX 2014-2019'),trsm:='Amsterdam heterosexual']
+dat[lab %in% c('HSX 2014-2018'),trsm:='Amsterdam heterosexual']
 
 dat[chains=='pre-existing', chains:='pre-existing*']
 dat$chains <- factor(dat$chains,levels=c('pre-existing*','emergent'))
 
 dat$trsm <- factor(dat$trsm,levels=c('Amsterdam MSM','Amsterdam heterosexual'))
 
-dat[, time:= '2014-2019']
+dat[, time:= '2014-2018']
 
 # pad data with 0s to keep bars same width
 dat2 <- as.data.table(tidyr::crossing(time=unique(dat$time),analysis=unique(dat$analysis),
@@ -165,7 +164,7 @@ dat2 <- as.data.table(tidyr::crossing(time=unique(dat$time),analysis=unique(dat$
 dat <- merge(dat,dat2,by=c('time','analysis','chains','trsm','new_cases'),all=T)
 dat[is.na(QN),QN:=0]
 
-plot <- ggplot(data=subset(dat,time=='2014-2019')) +
+plot <- ggplot(data=subset(dat,time=='2014-2018')) +
 	geom_bar(aes(x=new_cases,y=QN,fill=analysis),stat='identity', position = "dodge") +
 	geom_errorbar(aes(x=new_cases,ymin=QN_L, ymax=QN_U,fill=analysis),position=position_dodge(width=0.9), width=0.5, colour="black")	+
 	scale_y_sqrt(breaks=seq(0,600,50)) +
@@ -175,7 +174,7 @@ plot <- ggplot(data=subset(dat,time=='2014-2019')) +
 	theme(legend.position="bottom",
 				strip.background=element_blank()) +
 	ggsci::scale_fill_npg()
-ggsave(file=paste0(outfile.base,'-posteriorpredictivecheck_fig3_2014-2019.png'),plot,w=15, h=12)
+ggsave(file=paste0(outfile.base,'-chain_growth_dist_obs_predicted.png'),plot,w=15, h=12)
 
 
 cat(" \n -------------------------------- Get number of new cases -------------------------------- \n")
@@ -192,7 +191,7 @@ setnames(N1,c('observed','predicted'),c('pre-existing_observed','pre-existing_pr
 setnames(N2,c('observed','predicted'),c('emergent_observed','emergent_predicted'))
 N_i <- merge(N1,N2,by=c('lab'),all=T)
 
-N_i$lab <- factor(N_i$lab,levels=c('MSM 2014-2019','HSX 2014-2019'))
+N_i$lab <- factor(N_i$lab,levels=c('MSM 2014-2018','HSX 2014-2018'))
 N_i <- N_i[order(lab),]
 
 # save table

@@ -4,20 +4,16 @@
 
 cat(" \n -------------------------------- \n \n post-processing-posterior-predictive-check-trsm-group.R\n \n -------------------------------- \n")
 
-suppressMessages(library(rstan, quietly = TRUE))
 suppressMessages(library(data.table, quietly = TRUE))
 suppressMessages(library(dplyr, quietly = TRUE))
-suppressMessages(library(bayesplot, quietly = TRUE))
 suppressMessages(library(ggplot2, quietly = TRUE))
 suppressMessages(library(ggpubr, quietly = TRUE))
-suppressMessages(library(viridis, quietly = TRUE))
-suppressMessages(library(forcats, quietly = TRUE))
 suppressMessages(library(ggsci, quietly = TRUE))
 
 args_dir <- list()
 args_dir[['stanModelFileMSM']] <- 'branching_process_210810b_cmdstan'
 args_dir[['stanModelFileHSX']] <- 'branching_process_210810i_cmdstan'
-args_dir[['period']] <- '2014-2019'
+args_dir[['period']] <- '2014-2018'
 args_dir[['source_dir']] <- '~/git/bpm'
 args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
 args_dir[['job_name']] <- 'weibull_est_undiag'
@@ -64,7 +60,7 @@ cat("\n read RDS:", file)
 ppc.MSM <- readRDS(file)
 
 ppc.MSM[, trsm:='MSM']
-ppc.MSM[, time:='2014-2019']
+ppc.MSM[, time:='2014-2018']
 
 args_dir[['out_dir']] <- paste0(args_dir$in_dir,'/branching_process_model/',args_dir[['stanModelFileHSX']],'-',args_dir[['job_name']],'_',args_dir[['period']],'_HSX')
 args_dir[['job_tag']] <- paste0(args_dir[['job_name']],'_',args_dir[['period']],'_HSX')
@@ -82,7 +78,7 @@ cat("\n read RDS:", file)
 ppc.HSX <- readRDS(file)
 
 ppc.HSX[, trsm:='HSX']
-ppc.HSX[, time:='2014-2019']
+ppc.HSX[, time:='2014-2018']
 
 cat(" \n -------------------------------- define plotting functions -------------------------------- \n")
 

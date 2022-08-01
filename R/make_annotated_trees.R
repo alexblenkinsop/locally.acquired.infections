@@ -5,17 +5,16 @@ library(wesanderson)
 library(pals)
 library(glue)
 
-setwd("/Users/alexb/Box Sync/Roadmap/analysis_211101/phyloscanner/")
+outdir <- "~/git/locally.acquired.infections/data/trees"
 trsm <- 'HSX'
 #trsm <- 'MSM'
 
 if(trsm=='MSM'){
-  rdas <- list.files(pattern = "*AmsMSM__workspace.rda")
+  rdas <- list.files(indir,pattern = "*AmsMSM__redacted.rda")
 }else{
-  rdas <- list.files(pattern = "*AmsHSX__workspace.rda")
+  rdas <- list.files(indir,pattern = "*AmsHSX__redacted.rda")
 }
 
-outdir <- "/Users/alexb/Box Sync/Roadmap/analysis_211101/phyloscanner/long_format"
 
 #walk(rdas, function(a.rda){
 for(i in 1:length(rdas)){
@@ -95,10 +94,7 @@ for(i in 1:length(rdas)){
   huh <- glasbey(n=21)
   
   huh2 <- c(huh[c(6, 16, 7, 8, 9, 11, 12, 21, 5)], "grey50")
-  #huh2 <- c(huh[1:3], "grey50", huh[c(6, 16, 7, 8, 9, 11, 12, 21, 5)])
   if(trsm=='MSM'){
-    #huh2 <- c(pal_npg("nrc")(5), huh[c(7,16,21,19)], "grey50") #MSM
-    #huh2 <- c(rev(pal_npg("nrc")(8)), huh[c(7,16,21,19)], "grey50") #HSX
     huh2 <- c(rev(pal_npg("nrc")(8))[c(1:6,8,7)], huh[c(7,16,21,19)], "grey50") #HSX
   }else{
     huh2 <- c(pal_npg("nrc")(7), huh[c(7,16,21,19)], "grey50") #HSX
@@ -109,10 +105,7 @@ for(i in 1:length(rdas)){
   
   if(trsm=='MSM'){
     tree.display <- ggtree(tree, aes(color=new.branch.colours), size = 0.1) +
-      # geom_point2(aes(subset=SUBGRAPH_MRCA, color=INDIVIDUAL), shape = 23, size = 3, fill="white") +
       geom_point2(aes(color=new.individual), size=0.66) +
-      # scale_shape_manual(values=c(16, 4)) +
-      # theme(legend.position="none") +
       geom_treescale(x=0.01, y = length(tree$tip.label)*0.5,  offset=4) +
       scale_colour_manual(values = huh2, na.value = "black", drop = F, labels = c("Amsterdam - MSM",
                                                                                   "Amsterdam - non-MSM",
@@ -134,10 +127,7 @@ for(i in 1:length(rdas)){
     }
   }else{
     tree.display <- ggtree(tree, aes(color=new.branch.colours), size = 0.1) +
-      # geom_point2(aes(subset=SUBGRAPH_MRCA, color=INDIVIDUAL), shape = 23, size = 3, fill="white") +
       geom_point2(aes(color=new.individual), size=0.66) +
-      # scale_shape_manual(values=c(16, 4)) +
-      # theme(legend.position="none") +
       geom_treescale(x=0.01, y = length(tree$tip.label)*0.5,  offset=4) +
       scale_colour_manual(values = huh2, na.value = "black", drop = F, labels = c("Amsterdam - HSX",
                                                                                   "Amsterdam - non-HSX",
@@ -160,13 +150,7 @@ for(i in 1:length(rdas)){
   
   if(trsm=='MSM'){
     tree.display <- ggtree(tree, aes(color=new.branch.colours), size = 0.1,layout="fan", open.angle=60) +
-    # geom_point2(aes(subset=SUBGRAPH_MRCA, color=INDIVIDUAL), shape = 23, size = 3, fill="white") +
     geom_point2(aes(color=new.individual), size=0.66) +
-      #geom_point2(aes(color=new.individual), size=0.3) + # BC2
-      #geom_point2(aes(color=new.individual), size=0.5) +
-      # scale_shape_manual(values=c(16, 4)) +
-    # theme(legend.position="none") +
-    #geom_treescale(x=0.01, y = length(tree$tip.label)*0.5,  offset=-150) +
       geom_treescale(x=-0.01, y = length(tree$tip.label)*0.5,  offset=-150) + # 02ag
       scale_colour_manual(values = huh2, na.value = "black", drop = F, labels = c("Amsterdam - MSM",
                                                                                 "Amsterdam - non-MSM",
@@ -196,10 +180,7 @@ for(i in 1:length(rdas)){
 
   }else{
     tree.display <- ggtree(tree, aes(color=new.branch.colours), size = 0.1,layout="fan") +
-      # geom_point2(aes(subset=SUBGRAPH_MRCA, color=INDIVIDUAL), shape = 23, size = 3, fill="white") +
       geom_point2(aes(color=new.individual), size=0.66) +
-      # scale_shape_manual(values=c(16, 4)) +
-      # theme(legend.position="none") +
       geom_treescale(x=0.01, y = length(tree$tip.label)*0.5,  offset=-150) +
       scale_colour_manual(values = huh2, na.value = "black", drop = F, labels = c("Amsterdam - HSX",
                                                                                   "Amsterdam - non-HSX",
@@ -225,14 +206,14 @@ for(i in 1:length(rdas)){
   if(grepl('Bc2',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/600, height = tips/600, limitsize = T)
   if(grepl('Bc3',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/600, height = tips/600, limitsize = T)
   if(grepl('Bc',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/300, height = tips/300, limitsize = T)
-  #if(grepl('C',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/200, height = tips/200, limitsize = T)
+  if(grepl('C',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/200, height = tips/200, limitsize = T)
   if(grepl('C',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/300, height = tips/300, limitsize = T)
   if(grepl('D',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/50, height = tips/50, limitsize = T)
   if(grepl('G',subtype)) ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/80, height = tips/80, limitsize = T)
   if(subtype=='06cpx') ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/20, height = tips/20, limitsize = T)
   if(subtype=='Bc4') ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/20, height = tips/20, limitsize = T)
   #ggsave(glue("type_{subtype}_tree_newlabels_fan_sm_{trsm}.pdf"), width = tips/200, height = tips/200, limitsize = F)
-})
+}
 
 
 
@@ -243,7 +224,7 @@ if(any(read.counts!=1 & !is.na(read.counts))){
 
 x.max <- ggplot_build(tree.display)$layout$panel_scales_x[[1]]$range$range[2]
 
-# for ggplot2 version compatibility. This keeps changing!
+# for ggplot2 version compatibility
 
 if(is.null(x.max)){
   x.max <- ggplot_build(tree.display)$layout$panel_params[[1]]$x.range[2]

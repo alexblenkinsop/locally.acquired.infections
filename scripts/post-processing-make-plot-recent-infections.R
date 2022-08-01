@@ -1,14 +1,9 @@
 
 cat(" \n -------------------------------- \n \n Running post-processing-plot-recent-hiv-infections.R\n \n -------------------------------- \n")
 
-suppressMessages(library(rstan, quietly = TRUE))
 suppressMessages(library(data.table, quietly = TRUE))
 suppressMessages(library(dplyr, quietly = TRUE))
-suppressMessages(library(bayesplot, quietly = TRUE))
 suppressMessages(library(ggplot2, quietly = TRUE))
-suppressMessages(library(ggpubr, quietly = TRUE))
-suppressMessages(library(viridis, quietly = TRUE))
-suppressMessages(library(forcats, quietly = TRUE))
 suppressMessages(library(ggsci, quietly = TRUE))
 
 args_dir <- list()

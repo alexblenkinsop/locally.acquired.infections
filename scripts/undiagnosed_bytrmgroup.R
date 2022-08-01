@@ -2,15 +2,8 @@ require(data.table)
 require(rstan)
 require(bayesplot)
 require(hexbin)
-require(cmdstanr)
-require(posterior)
-require(truncdist)
-require(scales)
-require(ggsci)
 require(tidyr)
 require(reshape)
-require(patchwork)
-require(ggpubr)
 
 ## set up ----
 if(0){
@@ -23,27 +16,16 @@ if(0){
 }
 
 args <- list( 
-	source_dir= '/rds/general/user/ablenkin/home/git/bpm',
-	indir='/rds/general/project/ratmann_roadmap_data_analysis/live',
+	source_dir= '/rds/general/user/ablenkin/home/git/locally.acquired.infections-private',
 	outdir= '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model',
-	dir.ecdc='/rds/general/project/ratmann_roadmap_data_analysis/live/Data/Undiagnosed/ECDC_model',
-	#source_dir= '~/Documents/GitHub/bpm',
-	#indir='~/Box Sync/Roadmap',
-	#outdir= '~/Box Sync/Roadmap/RQ1 Estimating introductions/undiagnosed/hierarchical_model',
-	dir.ecdc='/Users/alexb/Box Sync/Roadmap/RQ1 Estimating introductions/undiagnosed/ECDC_model',
 	stanModelFile= 'undiagnosed_211102',
 	analysis= 'analysis_211101',
-	#analysis= 'analysis_200917',
 	hmc_stepsize= 0.02,
 	hmc_num_samples= 15,
 	hmc_num_warmup= 10,			
 	seed= 42,
 	chain= 1,
-	#job_tag= 'undiag_untilmay2019',
-	job_tag= 'undiag_untilmay2019_weights',
-	#job_tag= '2010-2012_inf_NL_sens_midpoint_SC',
-	#job_tag= 'sens_q40',
-	#sens='mp',
+	job_tag= 'undiag_weighted_ECDC',
 	sens=F,
 	weights='ECDC'
 )
@@ -60,8 +42,7 @@ if(length(args_line) > 0)
 	stopifnot(args_line[[11]]=='-outdir')
 	stopifnot(args_line[[13]]=='-jobtag')
 	stopifnot(args_line[[15]]=='-sens')
-	stopifnot(args_line[[17]]=='-dir.ecdc')
-	stopifnot(args_line[[19]]=='-weights')
+	stopifnot(args_line[[17]]=='-weights')
 	
 	args <- list()
 	args[['source_dir']] <- args_line[[2]]
@@ -72,39 +53,28 @@ if(length(args_line) > 0)
 	args[['outdir']] <- args_line[[12]]
 	args[['job_tag']] <- args_line[[14]]
 	args[['sens']] <- args_line[[16]]
-	args[['dir.ecdc']] <- args_line[[18]]
 	args[['weights']] <- args_line[[18]]
 } 
 
-args$job_dir <- file.path(args$outdir,paste0(args$stanModelFile,'-',args$job_tag)) 
-#home <- file.path(args$indir,args$analysis,'Data')
-#outpath <- file.path(home,'RQ1 Estimating introductions','Manuscript')
-outpath <- file.path(args$outdir)
-#outdir <- file.path(home,'RQ1 Estimating introductions','undiagnosed','hierarchical_model',job_tag)
-outdir <- file.path(args$outdir,paste0(args$stanModelFile,'-',args$job_tag))
-
-dir.create( outdir )
 
 args$trsm <- 'MSM'
 job_tag <- args$job_tag
 
+args$job_dir <- file.path(args$outdir,paste0(args$stanModelFile,'-',args$job_tag)) 
+outpath <- file.path(args$outdir)
+outdir <- args$outdir
+
+infile.inftimes.m <- file.path(args$source_dir,'data','infection_times',paste0('time_to_diagnosis_birthplace-','MSM','.rds'))
+infile.inftimes.h <- file.path(args$source_dir,'data','infection_times',paste0('time_to_diagnosis_birthplace-','HSX','.rds'))
+infile.diagnoses.i <- file.path(args$source_dir,'data','patient_data',paste0('N_diagnosed_by_mg_infdate_since_','2014','.csv'))
+
+#dir.create( outdir )
+
 ## make stan data ----
 cat(" \n -------------------------------- \n Load data \n -------------------------------- \n")
 
-# load data
-file.seqlabels <- file.path(args$indir,args$analysis,'misc/200917_sequence_labels.rda')
-infile.inftime <- file.path(args$indir,'Data/infection_time_estimates','roadmap_cd4_vl_est.csv')
-if(args$sens!=F){
-	infile.inftime <- file.path(args$indir,'Data/infection_time_estimates','roadmap_cd4_vl_est-quantiles.csv')
-}
-geo.file <- file.path(args$indir,'misc/NEWGEO.csv')
-
-infile.ecdc.msm <- file.path(args$dir.ecdc,'AMS_MSM_LOCAL_MR_Result_main.csv')
-infile.ecdc.nonmsm <- file.path(args$dir.ecdc,'AMS_NO_MSM_LOCAL_MR_Result_main.csv')
-
-load(file.seqlabels)
-dinf <- read.csv(infile.inftime,header=T)
-geo <- data.table(read.csv(geo.file))
+infile.ecdc.msm <- file.path(args$source_dir,'data','infection_times','AMS_MSM_infections_ECDC.csv')
+infile.ecdc.nonmsm <- file.path(args$source_dir,'data','infection_times','AMS_NO_MSM_infections_ECDC.csv')
 
 # load ECDC estimates
 dw <- data.table(read.csv(infile.ecdc.msm))
@@ -118,190 +88,35 @@ cat(" \n -------------------------------- \n Generate weights \n ---------------
 dw <- subset(dw, select=c(trsm,year,N_Inf_M), year %in% c(2014:2018))
 dw <- dw[, list(year=year,w=N_Inf_M/sum(N_Inf_M)),by=c('trsm')]
 
-cat(" \n -------------------------------- \n Define migrant groups \n -------------------------------- \n")
+cat(" \n -------------------------------- \n Load infection times \n -------------------------------- \n")
 
-geo[geo$Alpha_2_code %in%c('AM','AZ','BY','GE','MD','RU','UA'),WRLD:='EEurope']
-geo[geo$Alpha_2_code %in%c('AU','NZ'),WRLD:='Oceania']
-setnames(geo,c('CNTRY','WRLD'),c('CNTRY_born','WRLD_born'))
+do <- readRDS(infile.inftimes.m)
+tmp <- readRDS(infile.inftimes.h)
+do <- rbind(do,tmp)
 
-dind <- data.table(dind)
-if(args$sens==F){
-	dinf <- subset(dinf,select=c('id','estsctodiagMedian','hiv_pos_d'))
-}else if(args$sens=='mp'){
-	dinf <- subset(dinf,select=c('id','u','estsctodiagMedian','hiv_pos_d','hiv1_neg_d'))
-}else{
-  dinf <- subset(dinf,select=c('id','estsctodiagMedian','estsctodiag30','estsctodiag40','hiv_pos_d'))
-}
-dinf <- unique(dinf)
-if(args$sens=='mp'){
-	dinf <- subset(dinf,!is.na(hiv1_neg_d)) # just keep patients with a last negative test for sensitivity analysis
-}
-dinf <- merge(dinf,subset(dind,select=c('PATIENT','TRANSM','BIRTH_CNTRY','HIV1_POS_D','INF_CNTRY','MIG_D')),by.x='id',by.y='PATIENT',all.x=T)
-do <- data.table(dinf)
-if(args$sens==30){
-	do[, time:=estsctodiag30]
-}else if(args$sens==40){
-	do[, time:=estsctodiag40]
-}else if(args$sens=='mp'){
-	do[, estsctodiagMedian:=u/2] # use midpoint between time at risk (last neg test and first pos test)	
-	do[, time:=estsctodiagMedian]
-}else{
-	do[, time:=estsctodiagMedian]
-}
-
-do[, INF_D:=HIV1_POS_D - time]
-do <- merge(do,subset(dind,select=c('PATIENT','ORIGIN')),by.x='id', by.y='PATIENT',all.x=T)
-do <- merge(do,geo,by.x='ORIGIN',by.y='Alpha_2_code',all.x=T)
-
-# reclassify by main migrant groups
-## msm
-do[TRANSM=='MSM', mwmb:="Other"]
-do[TRANSM=='MSM' & ORIGIN %in% c("NL"), mwmb:="NL"]
-# western countires (non-NL)
-do[TRANSM=='MSM' & WRLD_born %in% c("WEurope","NorthAm","Oceania") & ORIGIN!='NL', mwmb:="G1"]
-# eastern and central europe
-do[TRANSM=='MSM' & WRLD_born %in% c("EEurope", "CEurope"), mwmb:="G2"]
-# caribbean and south america
-do[TRANSM=='MSM' & WRLD_born %in% c("LaAmCar","FormerCurrDutchColonies"), mwmb:="G3"]
-
-## hsx
-do[TRANSM=='HSX', mwmb:="Other"]
-do[TRANSM=='HSX' & ORIGIN %in% c("NL"), mwmb:="NL"]
-# sub-saharan africa
-do[TRANSM=='HSX' & WRLD_born %in% c("Africa"), mwmb:="G4"]
-# caribbean and south america
-do[TRANSM=='HSX' & WRLD_born %in% c("LaAmCar","FormerCurrDutchColonies"), mwmb:="G5"]
-
-# exclude individuals without an infection time estimate
-do <- subset(do,!is.na(time))
+n_diag <- data.table(read.csv(infile.diagnoses.i, header=T))
 
 # summarise number diagnosed to adjust for undiagnosed
-do[, infdate:=INF_D]
-do[is.na(INF_D) & HIV1_POS_D>=2014, infdate:=HIV1_POS_D] ## in model we use HIV pos date where there is no infection date - check this
-n_diag <- do[, list(N_diag=length(unique(id[infdate>=2014]))),by=c('TRANSM','mwmb')]
 n_diag <- n_diag[order(mwmb),]
-
-da <- subset(do,do$INF_D>=2010 & do$INF_D<2013 & TRANSM %in% c('HSX','MSM'))
-
-cat(" \n -------------------------------- \n Make summary table of characteristics \n -------------------------------- \n")
-
-tab <- data.table(var1='TRANSM',var2='TOTAL',table(da$TRANSM))
-tab[, V2:=V1]
-
-tab <- rbind(tab,data.table(var1='TRANSM',var2='BIRTH_PLACE',table(da$mwmb,da$TRANSM)))
-tab <- tab[, c('var1','var2','V1','V2','N')]
-
-tab[var2=='TOTAL',V1:=var2]
-tab <- subset(tab,!(N==0))
-tab_all <- copy(tab)
-
-# make synthetic subset of data
-de <- subset(do,do$INF_D>=2010 & do$INF_D<2013 & TRANSM %in% c('HSX','MSM'))
-dexcl <- da
-
-tab <- data.table(var1='TRANSM',var2='TOTAL',table(dexcl$TRANSM))
-tab[, V2:=V1]
-
-tab <- rbind(tab,data.table(var1='TRANSM',var2='BIRTH_PLACE',table(dexcl$mwmb,dexcl$TRANSM)))
-tab <- tab[, c('var1','var2','V1','V2','N')]
-tab[var2=='TOTAL',V1:=var2]
-tab <- subset(tab,!(N==0))
-tab_excl <- copy(tab)
-
-tab <- data.table(var1='TRANSM',var2='TOTAL',table(de$TRANSM))
-tab[, V2:=V1]
-
-tab <- rbind(tab,data.table(var1='TRANSM',var2='BIRTH_PLACE',table(de$mwmb,de$TRANSM)))
-tab <- tab[, c('var1','var2','V1','V2','N')]
-
-time <- de[, list(var='INFTIME',
-									V1='Estimated time to diagnosis (years)',
-									q=paste0(round(quantile(estsctodiagMedian,probs=0.5,na.rm=T),2),
-													 " [",
-													 round(quantile(estsctodiagMedian,probs=0.025,na.rm=T),2),
-													 "-",
-													 round(quantile(estsctodiagMedian,probs=0.975,na.rm=T),2),
-													 "]")),
-					 by=c('TRANSM','mwmb')]
-time_all <- de[, list(mwmb='TOTAL',
-											var='INFTIME',
-											V1='Estimated time to diagnosis (years)',
-											q=paste0(round(quantile(estsctodiagMedian,probs=0.5,na.rm=T),2),
-															 " [",
-															 round(quantile(estsctodiagMedian,probs=0.025,na.rm=T),2),
-															 "-",
-															 round(quantile(estsctodiagMedian,probs=0.975,na.rm=T),2),
-															 "]")),
-							 by=c('TRANSM')]
-time <- rbind(time,time_all)
-time <- dcast(time,TRANSM+mwmb~V1,value.var='q')
-tab[var2=='TOTAL',V1:=var2]
-tab <- merge(tab,time,by.y=c('TRANSM','mwmb'),by.x=c('V2','V1'),all=T)
-tab <- subset(tab,!(N==0 & is.na(`Estimated time to diagnosis (years)`)))
-tab_incl <- copy(tab)
-
-setnames(tab_all,'N','N_all')
-setnames(tab_excl,'N','N_excluded')
-setnames(tab_incl,'N','N_included')
-tab <- merge(tab_all,tab_excl,by=c('var1','var2','V1','V2'),all=T)
-tab <- merge(tab,tab_incl,by=c('var1','var2','V1','V2'),all=T)
-
-tab[V1=='G1', V1:='W.Europe, N.America, Oceania']
-tab[V1=='G2', V1:='E. & C. Europe']
-tab[V1=='G3', V1:='S. America & Caribbean']
-tab[V1=='G4', V1:='Sub-Saharan Africa']
-tab[V1=='G5', V1:='S. America & Caribbean']
-tab[V1=='NL', V1:='Netherlands']
-tab[V1=='Other', V1:='Other']
-tab[V1=='TOTAL', V1:='All']
-
-tab$V2 <- factor(tab$V2,levels=c('MSM','HSX'),labels=c('Amsterdam MSM','Amsterdam heterosexual'))
-tab <- tab[order(V2),]
-tab <- subset(tab,is.na(N_excluded)) # drop the pts infected outside NL
-saveRDS(tab,file=file.path(outdir, paste0("characteristics_patients_undiagnosed.RDS")))
 
 ## MSM model ----
 cat(" \n -------------------------------- \n MSM model: Make stan data \n -------------------------------- \n")
 
 args$trsm <- 'MSM'
 
-dt <- subset(do,TRANSM==args$trsm & do$INF_D>=2010 & do$INF_D<2013)
-dt[mwmb=='G1',mgid:=1]
-dt[mwmb=='G2',mgid:=2]
-dt[mwmb=='G3',mgid:=3]
-dt[mwmb=='NL',mgid:=4]
-dt[mwmb=='Other',mgid:=5]
+dt <- subset(do,trsm==args$trsm)
 N_diag <- subset(n_diag,TRANSM==args$trsm)
-
-ps <- c(0.5,0.025,0.975)
-p_labs <- c('M','CL','CU')
-time_m_ci <- do[, list(q=quantile(time[INF_D>=2010 & INF_D<2013],prob=ps,na.rm=T),
-											 q_label=p_labs),by=c('TRANSM','mwmb')]
-time_m_ci <- subset(time_m_ci,TRANSM %in% c('MSM','HSX'))
-time_m_ci <- dcast(time_m_ci,TRANSM+mwmb~q_label,value.var='q')
-time_m_ci <- subset(time_m_ci,select=c('TRANSM','mwmb','M','CL','CU'))
-
-time_m_ci_all <- do[, list(q=quantile(time[INF_D>=2010 & INF_D<2013],prob=ps,na.rm=T),
-											 q_label=p_labs),by=c('TRANSM')]
-time_m_ci_all <- subset(time_m_ci_all,TRANSM %in% c('MSM','HSX'))
-time_m_ci_all <- dcast(time_m_ci_all,TRANSM~q_label,value.var='q')
-time_m_ci_all <- subset(time_m_ci_all,select=c('TRANSM','M','CL','CU'))
-
-time_m_ci_total <- do[, list(q=quantile(time[INF_D>=2010 & INF_D<2013],prob=ps,na.rm=T),
-													 q_label=p_labs)]
-time_m_ci_total <- dcast(time_m_ci_total,.~q_label,value.var="q")
 
 data_mg <- data.table(trsm='MSM',mgid=dt$mgid,time_to_diagnosis=dt$time)
 data_mg[, migrant_group:=factor(mgid,
 														 levels=c(1,2,3,4,5),
 														 labels=c('W.Europe,N.America,Oceania','E. & C. Europe','S. America & Caribbean',
 														 				 'NL','Other'))]
-saveRDS(data_mg,file=file.path(outdir, paste0('time_to_diagnosis_birthplace-',job_tag,"-",args$trsm,'.rds')))
-	
+
 q50 <- quantile(dt$time,probs=c(0.5))
 q80 <- quantile(dt$time,probs=c(0.8))
-stan_data <- list( n=nrow(dt), r=length(unique(dt$mwmb)), idx_to_obs_array=dt$mgid, y = dt$time, 
-										 log_wb_quantiles_priormean=c(log(q50),log(q80)-log(q50)),N_diag=N_diag$N_diag)
+stan_data <- list( n=nrow(dt), r=length(unique(dt$mgid)), idx_to_obs_array=dt$mgid, y = dt$time, 
+										 log_wb_quantiles_priormean=c(log(q50),log(q80)-log(q50)),N_diag=N_diag$diag)
 save(stan_data, file=file.path(outdir, paste0(job_tag,'-',args$trsm,'-stanin.RData')))
 
 ## init values
@@ -442,13 +257,12 @@ dm <- rbind(dm,dm_all)
 saveRDS(dm,file=file.path(outdir,paste0('median_timetodiagnosis_',job_tag,"_",args$trsm,'.RDS')))
 
 # calculate prob(undiagnosed) for a given month/year of infection
-dat <- crossing(year=seq(2014,2018,1),month=seq(1,12,1))
+dat <- tidyr::crossing(year=seq(2014,2018,1),month=seq(1,12,1))
 if(args$weights=='ECDC'){
-	dat <- crossing(year=seq(2014,2018,1))
+	dat <- tidyr::crossing(year=seq(2014,2018,1))
 }
 ds <- merge(dat,ds,all=T)
 ds <- data.table(ds)
-#ds[, time:=(2019-year)-(month/12)] # +(1/12) to add 1 month so we count until end Dec 2018/start of Jan 2019. but I think it makes sense someone infected Dec 2018 has 0 prob of being diagnosed by end of 2018 due to time taken to detect virus
 if(args$weights=='ECDC'){
 	ds[, time:=(2019 - year)]
 }else{
@@ -522,9 +336,9 @@ dm <- dcast(dm,trsm~qlabel,value.var="p")
 saveRDS(ds,file=file.path(outdir,paste0('median_timetodiagnosis_',job_tag,"_all_",args$trsm,'.RDS')))
 
 # calculate prob(undiagnosed) for a given month/year of infection
-dat <- crossing(year=seq(2014,2018,1),month=seq(1,12,1))
+dat <- tidyr::crossing(year=seq(2014,2018,1),month=seq(1,12,1))
 if(args$weights=='ECDC'){
-	dat <- crossing(year=seq(2014,2018,1))
+	dat <- tidyr::crossing(year=seq(2014,2018,1))
 }
 ds <- merge(dat,ds,all=T)
 ds <- data.table(ds)
@@ -588,11 +402,7 @@ cat(" \n -------------------------------- \n HSX model: Make stan data \n ------
 
 args$trsm <- 'HSX'
 
-dt <- subset(do,TRANSM==args$trsm & do$INF_D>=2010 & do$INF_D<2013)
-dt[mwmb=='G4',mgid:=1]
-dt[mwmb=='G5',mgid:=2]
-dt[mwmb=='NL',mgid:=3]
-dt[mwmb=='Other',mgid:=4]
+dt <- subset(do,trsm==args$trsm)
 N_diag <- subset(n_diag,TRANSM==args$trsm)
 
 data_mg <- data.table(trsm='HSX',mgid=dt$mgid,time_to_diagnosis=dt$time)
@@ -600,14 +410,11 @@ data_mg[, migrant_group:=factor(mgid,
 																levels=c(1,2,3,4),
 																labels=c('Sub-Saharan Africa','S. America & Caribbean',
 																				 'NL','Other'))]
-saveRDS(data_mg,file=file.path(outdir, paste0('time_to_diagnosis_birthplace-',job_tag,"-",args$trsm,'.rds')))
-
 stan_data <- list()
 q50 <- quantile(dt$time,probs=c(0.5))
 q80 <- quantile(dt$time,probs=c(0.8))
-stan_data <- list( n=nrow(dt), r=length(unique(dt$mwmb)), idx_to_obs_array=dt$mgid, y = dt$time, 
-									 log_wb_quantiles_priormean=c(log(q50),log(q80)-log(q50)),N_diag=N_diag$N_diag)
-#save(stan_data, file=file.path(outdir, 'stanin.RData'))
+stan_data <- list( n=nrow(dt), r=length(unique(dt$mgid)), idx_to_obs_array=dt$mgid, y = dt$time, 
+									 log_wb_quantiles_priormean=c(log(q50),log(q80)-log(q50)),N_diag=N_diag$diag)
 save(stan_data, file=file.path(outdir, paste0(job_tag,'-',args$trsm,'-stanin.RData')))
 
 options(mc.cores=parallel::detectCores())
@@ -737,9 +544,9 @@ dm <- rbind(dm,dm_all)
 saveRDS(dm,file=file.path(outdir,paste0('median_timetodiagnosis_',job_tag,"_",args$trsm,'.RDS')))
 
 # calculate prob(undiagnosed) for a given month/year of infection
-dat <- crossing(year=seq(2014,2018,1),month=seq(1,12,1))
+dat <- tidyr::crossing(year=seq(2014,2018,1),month=seq(1,12,1))
 if(args$weights=='ECDC'){
-	dat <- crossing(year=seq(2014,2018,1))
+	dat <- tidyr::crossing(year=seq(2014,2018,1))
 }
 ds <- merge(dat,ds,all=T)
 ds <- data.table(ds)
@@ -818,9 +625,9 @@ dm <- dcast(dm,trsm~qlabel,value.var="p")
 saveRDS(ds,file=file.path(outdir,paste0('median_timetodiagnosis_',job_tag,"_all_",args$trsm,'.RDS')))
 
 # calculate prob(undiagnosed) for a given month/year of infection
-dat <- crossing(year=seq(2014,2018,1),month=seq(1,12,1))
+dat <- tidyr::crossing(year=seq(2014,2018,1),month=seq(1,12,1))
 if(args$weights=='ECDC'){
-	dat <- crossing(year=seq(2014,2018,1))
+	dat <- tidyr::crossing(year=seq(2014,2018,1))
 }
 ds <- merge(dat,ds,all=T)
 ds <- data.table(ds)
@@ -885,172 +692,3 @@ if(args$weights=='ECDC'){
 	saveRDS(ds,file=file.path(outdir,paste0('p_undiagnosed_average_',job_tag,"_all_",args$trsm,'.RDS')))
 	
 }
-
-## make figures ----
-cat(" \n -------------------------------- \n Make figures \n -------------------------------- \n")
-
-do[mwmb=='G1' & TRANSM=='MSM',mgid:=1]
-do[mwmb=='G2' & TRANSM=='MSM',mgid:=2]
-do[mwmb=='G3' & TRANSM=='MSM',mgid:=3]
-do[mwmb=='NL' & TRANSM=='MSM',mgid:=4]
-do[mwmb=='Other' & TRANSM=='MSM',mgid:=5]
-do[mwmb=='G4' & TRANSM=='HSX',mgid:=1]
-do[mwmb=='G5'& TRANSM=='HSX',mgid:=2]
-do[mwmb=='NL'& TRANSM=='HSX',mgid:=3]
-do[mwmb=='Other'& TRANSM=='HSX',mgid:=4]
-
-## relabel migrant groups
-do[mwmb=='G1' & TRANSM=='MSM', mlab:='W.Europe,\nN.America,\nOceania']
-do[mwmb=='G2' & TRANSM=='MSM', mlab:='E. & C. Europe']
-do[mwmb=='G3' & TRANSM=='MSM', mlab:='S. America &\n Caribbean']
-do[mwmb=='NL' & TRANSM=='MSM', mlab:='NL']
-do[mwmb=='Other' & TRANSM=='MSM', mlab:='Other']
-
-do[mwmb=='G4' & TRANSM=='HSX', mlab:='Sub-Saharan\nAfrica']
-do[mwmb=='G5' & TRANSM=='HSX', mlab:='S. America &\n Caribbean']
-do[mwmb=='NL' & TRANSM=='HSX', mlab:='NL']
-do[mwmb=='Other' & TRANSM=='HSX', mlab:='Other']
-
-cat(" \n -------------------------------- \n Make plot of undiagnosed by year \n -------------------------------- \n")
-
-do$mlab <- factor(do$mlab,levels=c('NL','W.Europe,\nN.America,\nOceania','E. & C. Europe','S. America &\n Caribbean','Sub-Saharan\nAfrica','Other'))
-do$mlab2 <- factor(do$mlab, levels=c('Other','Sub-Saharan\nAfrica','S. America &\n Caribbean','E. & C. Europe','W.Europe,\nN.America,\nOceania','NL'))
-do$trsm <- factor(do$TRANSM,levels=c('MSM','HSX'),labels=c('Amsterdam MSM','Amsterdam heterosexuals'))
-
-col_msm = pal_npg("nrc")(9)[c(1:5)]
-col_hsx = pal_npg("nrc")(9)[c(8,6,7,9)]
-
-#col_msm = pal_lancet("lanonc")(9)[c(1:5)]
-#col_hsx = pal_lancet("lanonc")(9)[c(8,6,7,9)]
-
-## bar plot 
-msm_s <- readRDS(file=file.path(outdir,paste0('p_undiagnosed_byyear_',job_tag,"_MSM",'.RDS')))
-hsx_s <- readRDS(file=file.path(outdir,paste0('p_undiagnosed_byyear_',job_tag,"_HSX",'.RDS')))
-du <- rbind(msm_s,hsx_s)
-du <- reshape2::dcast(du,trsm+mg+year~qlabel,value.var='p')
-du <- data.table(du)
-du$year <- as.integer(as.character(du$year))
-
-du[trsm=='HSX', trsm := 'Amsterdam heterosexuals']
-du[trsm=='MSM', trsm := 'Amsterdam MSM']
-du <- merge(du, unique(subset(do,select=c('trsm','mgid','mlab'))),by.x=c('trsm','mg'),by.y=c('trsm','mgid'),all=T)
-du <- du[!is.na(du$trsm),]
-
-du$trsm <- factor(du$trsm,levels=c('Amsterdam MSM','Amsterdam heterosexuals'))
-
-plot_msm <- ggplot(data=subset(du,trsm=='Amsterdam MSM' & !is.na(mlab)),aes(x=year,y=p0.5,fill=mlab)) +
-	geom_bar(stat='identity', position = "dodge") +
-	geom_errorbar(aes(x=year,ymin=p0.025, ymax=p0.975,fill=mlab),position=position_dodge(width=0.9), width=0.5, colour="black")	+
-	facet_grid(.~trsm) +
-	scale_y_continuous(expand = c(0,0),labels = scales::percent)  +
-	coord_cartesian(ylim=c(0,1)) +
-	labs(x='Year of infection',y="% infections undiagnosed by end of 2018",fill="Ethnicity") +
-	ggtitle('Amsterdam MSM') +
-	theme_bw(base_size=36) +
-	theme(legend.position="bottom",
-				legend.text=element_text(size=30),
-				strip.background=element_blank(),
-				strip.text = element_blank(),
-				plot.title = element_text(hjust = 0.5)) +
-	scale_fill_manual(values=col_msm) 
-plot_hsx <- ggplot(data=subset(du,trsm=='Amsterdam heterosexuals' & !is.na(mlab)),aes(x=year,y=p0.5,fill=mlab)) +
-	geom_bar(stat='identity', position = "dodge") +
-	geom_errorbar(aes(x=year,ymin=p0.025, ymax=p0.975,fill=mlab),position=position_dodge(width=0.9), width=0.5, colour="black")	+
-	facet_grid(.~trsm) +
-	scale_y_continuous(expand = c(0,0),labels = scales::percent)  +
-	coord_cartesian(ylim=c(0,1)) +
-	labs(x='Year of infection',y="% infections undiagnosed by end of 2018",fill="") +
-	ggtitle('Amsterdam heterosexuals') +
-	theme_bw(base_size=36) +
-	theme(legend.position="bottom",
-				legend.text=element_text(size=30),
-				strip.background=element_blank(),
-				strip.text = element_blank(),
-				plot.title = element_text(hjust = 0.5)) +
-	scale_fill_manual(values=col_hsx)
-plot <- plot_msm | plot_hsx
-ggsave(file.path(outdir,'undiagnosedbyyear_mwmb.png'),plot,w=34, h=16)
-ggsave(file.path(outdir,'undiagnosedbyyear_mwmb.pdf'),plot,w=34, h=16)
-
-saveRDS(do,file=file.path(outdir,'metadata_with_inftime_mgroup.RDS'))
-
-cat(" \n -------------------------------- \n Plot empirical/fitted CDFs \n -------------------------------- \n")
-
-msm_s <- readRDS(file=file.path(outdir, paste0('samples_',job_tag,"_MSM",'.rds')))
-hsx_s <- readRDS(file=file.path(outdir, paste0('samples_',job_tag,"_HSX",'.rds')))
-
-shape_msm <- data.table(reshape::melt(msm_s$wb_shape_grp))
-setnames(shape_msm,c('iterations','Var.2'),c('iter','mg'))
-shape_hsx <- data.table(reshape::melt(hsx_s$wb_shape_grp))
-setnames(shape_hsx,c('iterations','Var.2'),c('iter','mg'))
-shape_msm[, trsm:='MSM']
-shape_hsx[, trsm:='HSX']
-shape_msm[, par:='shape']
-shape_hsx[, par:='shape']
-
-scale_msm <- data.table(reshape::melt(msm_s$wb_scale_grp))
-setnames(scale_msm,c('iterations','Var.2'),c('iter','mg'))
-scale_hsx <- data.table(reshape::melt(hsx_s$wb_scale_grp))
-setnames(scale_hsx,c('iterations','Var.2'),c('iter','mg'))
-scale_msm[, trsm:='MSM']
-scale_hsx[, trsm:='HSX']
-scale_msm[, par:='scale']
-scale_hsx[, par:='scale']
-
-ds <- rbind(shape_msm,shape_hsx,scale_msm,scale_hsx)
-ds <- ds[, list(p=quantile(value,prob=c(0.025,0.5,0.975)),qlabel=c('p0.025','p0.5','p0.975')),by=c('trsm','mg','par')]
-ds <- dcast(ds,trsm+mg+par~qlabel,value.var="p")
-
-ds <- ds[, list(x=seq(0,10,0.1)),by=c('trsm','mg','par','p0.025','p0.5','p0.975')]
-ds <- dcast(ds,trsm+mg+x~par,value.var=c('p0.025','p0.5','p0.975'))
-ds[, cdf_L:= pweibull(x,shape=`p0.025_shape`,scale=`p0.025_scale`)]
-ds[, cdf_M:= pweibull(x,shape=`p0.5_shape`,scale=`p0.5_scale`)]
-ds[, cdf_U:= pweibull(x,shape=`p0.975_shape`,scale=`p0.975_scale`)]
-ds[trsm=='HSX', trsm := 'Amsterdam heterosexuals']
-ds[trsm=='MSM', trsm := 'Amsterdam MSM']
-ds <- merge(ds,unique(subset(do,select=c('trsm','mgid','mlab'))),by.x=c('trsm','mg'),by.y=c('trsm','mgid'),all.x=T)
-do[, mg:= mgid]
-
-dat_msm <- subset(ds,trsm=='Amsterdam MSM')
-dat_msm$mlab <- factor(dat_msm$mlab,levels=c('NL','W.Europe,\nN.America,\nOceania','E. & C. Europe','S. America &\n Caribbean','Other'))
-dat_msm$mlab <- factor(dat_msm$mlab,levels=c('NL','W.Europe,\nN.America,\nOceania','E. & C. Europe','S. America &\n Caribbean','Sub-Saharan\nAfrica','Other'))
-
-g_msm <- ggplot(subset(do,TRANSM %in% c('MSM') & INF_D>=2010 & INF_D<2013), aes(time)) +
-	stat_ecdf(geom = "step",size=1.5,colour="black") +
-	geom_ribbon(data=dat_msm,aes(x=x,ymin = cdf_L,ymax = cdf_U,fill=mlab),alpha = 0.4) +
-	geom_line(data=dat_msm,aes(x=x,y = cdf_M,colour=mlab), show.legend = F) +
-	scale_fill_manual(values=col_msm) +
-	scale_colour_manual(values=col_msm) +
-	labs(x='Time to diagnosis (years)',y='Probability of being diagnosed',fill='Ethnicity') +
-	scale_y_continuous(expand = c(0,0))  +
-	facet_grid(trsm~mlab) +
-	theme_bw(base_size=40) +
-	theme(legend.position="bottom",
-				strip.background=element_blank(),
-				strip.text = element_blank(),
-				plot.title = element_text(hjust=0.5)) +
-	ggtitle('Amsterdam MSM')
-ggsave(file.path(outdir,'msm_timetodiag_cdfs_facets.png'),g_msm,w=25, h=12)
-
-dat_hsx <- subset(ds,trsm=='Amsterdam heterosexuals')
-dat_hsx$mlab <- factor(dat_hsx$mlab,levels=c('NL','W.Europe,\nN.America,\nOceania','E. & C. Europe','S. America &\n Caribbean','Sub-Saharan\nAfrica','Other'))
-g_hsx <- ggplot(subset(do,TRANSM %in% c('HSX') & INF_D>=2010 & INF_D<2013), aes(time)) +
-	stat_ecdf(geom = "step",size=1.5,colour="black") +
-	geom_ribbon(data=dat_hsx,aes(x=x,ymin = cdf_L,ymax = cdf_U,fill=mlab),alpha = 0.4) +
-	geom_line(data=dat_hsx,aes(x=x,y = cdf_M,colour=mlab), show.legend = F) +
-	scale_fill_manual(values=col_hsx) +
-	scale_colour_manual(values=col_hsx) +
-	labs(x='Time to diagnosis (years)',y='Probability of being diagnosed',fill='Ethnicity') +
-	scale_y_continuous(expand = c(0,0))  +
-	facet_grid(trsm~mlab) +
-	theme_bw(base_size=40) +
-	theme(legend.position="bottom",
-				strip.background=element_blank(),
-				strip.text = element_blank(),
-				plot.title = element_text(hjust=0.5)) +
-	ggtitle('Amsterdam heterosexual')
-ggsave(file.path(outdir,'hsx_timetodiag_cdfs_facets.png'),g_hsx,w=25, h=12)
-
-g_cdf <- ggarrange(g_msm,g_hsx,ncol=1,align="hv")
-ggsave(file=file.path(outdir,'timetodiag_cdfs_facets.png'),g_cdf,w=35, h=25)
-

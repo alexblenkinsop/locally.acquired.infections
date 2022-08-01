@@ -118,7 +118,6 @@ data
     int<lower=0> N_sgs_m;					// number of obs subgraphs for index case m
     matrix<lower=0>[N_sbts,N_origins] pr_origins;		  // proportion of subgraphs from each origin
     matrix<lower=0>[N_sbts,N_bplace] pr_bplace;		  // proportion of subgraphs from each origin
-    matrix<lower=0>[N_sbts,2] origin_Ams;		  // proportion of subgraphs from each origin
     int<lower=1, upper=N_icases> INDEX_CASE_IDX;
     int<lower=0> index_flag;			// whether index cases should be assumed part of observed subgraph
     int<lower=1> z[max(N_cs_actual)];

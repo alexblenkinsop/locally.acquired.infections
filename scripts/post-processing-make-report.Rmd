@@ -59,7 +59,7 @@ if(file.exists(file)){
 ```{r, echo = FALSE}
 file <- file.path(args$job_dir, paste0(args$stanModelFile, "-",args$job_tag, "-","sampler_diagnostics.rds") )
 if(file.exists(file)){
-  diagostics <- readRDS(file)
+  diagnostics <- readRDS(file)
   knitr::kable(diagostics)
 }
 ```
@@ -72,7 +72,9 @@ Parameters with neff<500
 file <- file.path(args$job_dir, paste0(args$stanModelFile, "-",args$job_tag, "-","pars-with-small-neff.rds") )
 if(file.exists(file)){
   neff <- readRDS(file)
-  neff[which(neff[,9]<500), c(1, 2, 9, 10)]
+	par <- data.table(par=rownames(neff))
+	neff <- cbind(par,neff)
+	neff[which(neff[,'n_eff']<500), c('par', 'mean', 'se_mean', 'n_eff', 'Rhat')]
 }
 
 if(file.exists(file.to.figure("HMC-pairs_transmission_pars"))){
@@ -90,8 +92,8 @@ if(file.exists(file.to.figure("HMC-trace_transmission_pars"))){
 
 ### Generated cases
 ```{r, out.width="50%", fig.show='hold', fig.align='centre', echo=FALSE}
-if(file.exists(file.to.figure("posteriorpredictivecheck_newcases_bysubtype_chaintype.png"))){
-  knitr::include_graphics(file.to.figure("posteriorpredictivecheck_newcases_bysubtype_chaintype.png"))
+if(file.exists(file.to.figure("posteriorpredictivecheck_newcases_bysubtype_chaintype"))){
+  knitr::include_graphics(file.to.figure("posteriorpredictivecheck_newcases_bysubtype_chaintype"))
 }
 ```
 

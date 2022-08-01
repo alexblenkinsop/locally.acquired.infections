@@ -1,23 +1,21 @@
 
 cat(" \n -------------------------------- \n \n Running post-processing-summarise-bplace-newcases.R\n \n -------------------------------- \n")
 
-suppressMessages(library(rstan, quietly = TRUE))
 suppressMessages(library(data.table, quietly = TRUE))
 suppressMessages(library(dplyr, quietly = TRUE))
-suppressMessages(library(bayesplot, quietly = TRUE))
 suppressMessages(library(ggplot2, quietly = TRUE))
 suppressMessages(library(ggpubr, quietly = TRUE))
-suppressMessages(library(viridis, quietly = TRUE))
-suppressMessages(library(forcats, quietly = TRUE))
 suppressMessages(library(ggsci, quietly = TRUE))
 
 args_dir <- list()
 args_dir[['stanModelFileMSM']] <- 'branching_process_210810b_cmdstan'
 args_dir[['stanModelFileHSX']] <- 'branching_process_210810m_cmdstan'
 args_dir[['period']] <- '2014-2018'
-args_dir[['source_dir']] <- '~/git/bpm'
-args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
-args_dir[['job_name']] <- 'undiagnosed_untilmay'
+#args_dir[['source_dir']] <- '~/git/bpm'
+args_dir[['source_dir']] <- '/Users/alexb/Documents/GitHub/locally.acquired.infections-private'
+#args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
+args_dir[['in_dir']] <- '/Users/alexb/Documents/Roadmap/refactor_code'
+args_dir[['job_name']] <- 'test_refactor_gqs'
 args_dir[['infdate']] <- 1
 args_dir[['start_d']] <- 2014
 args_dir[['end_d']] <- 2019
@@ -66,10 +64,13 @@ file <- paste0(outfile.base,'-subtypes_prop_mwmb.RDS')
 cat("\n read RDS:", file)
 msm_st_p1 <- readRDS(file)
 file <- paste0(outfile.base,'-local_infections_samples_mwmb.RDS')
+cat("\n read RDS:", file)
 msm_p1 <- readRDS(file)
 file <- paste0(outfile.base,'-local_infections_samples_TRANSM.RDS')
+cat("\n read RDS:", file)
 local.MSM.p1 <- readRDS(file)
 file <- paste0(outfile.base,'-subtypes_prop_TRANSM.RDS')
+cat("\n read RDS:", file)
 st.MSM.p1 <- readRDS(file)
 st.MSM.p1 <- merge(st.MSM.p1, plot.pars.basic.MSM.p1$ds,by.x='subtype',by.y='subtypes')
 file <- paste0(outfile.base,'-stanout-bplace-gqs.RDS')
@@ -96,10 +97,13 @@ file <- paste0(outfile.base,'-subtypes_prop_mwmb.RDS')
 cat("\n read RDS:", file)
 hsx_st_p1 <- readRDS(file)
 file <- paste0(outfile.base,'-local_infections_samples_mwmb.RDS')
+cat("\n read RDS:", file)
 hsx_p1 <- readRDS(file)
 file <- paste0(outfile.base,'-local_infections_samples_TRANSM.RDS')
+cat("\n read RDS:", file)
 local.HSX.p1 <- readRDS(file)
 file <- paste0(outfile.base,'-subtypes_prop_TRANSM.RDS')
+cat("\n read RDS:", file)
 st.HSX.p1 <- readRDS(file)
 st.HSX.p1 <- merge(st.HSX.p1, plot.pars.basic.HSX.p1$ds,by.x='subtype',by.y='subtypes')
 file <- paste0(outfile.base,'-stanout-bplace-gqs.RDS')
@@ -111,6 +115,11 @@ hsx_p1[, trsm:='HSX']
 hsx_st_p1[, time:='2014-2019']
 hsx_p1[, time:='2014-2019']
 
+# other input files
+infile.subgraphs <- file.path(args_dir$out_dir,'subgraphs_withmetadata.RDS')
+infile.chaintype.infd <- file.path(args_dir$source_dir,'data','subgraph_metadata',paste0('subgraph_classification_infdate_',args_dir$start_d,'.csv'))
+infile.chaintype.diagd <- file.path(args_dir$source_dir,'data','subgraph_metadata',paste0('subgraph_classification_diagdate_',args_dir$start_d,'.csv'))
+infile.bplaces.trm.mwmb <- file.path(args_dir$source_dir,'data','patient_data',paste0('birthplaces_chaintype_',args_dir$start_d,'.csv'))
 
 cat(" \n -------------------------------- define functions -------------------------------- \n")
 
@@ -126,57 +135,38 @@ quantiles_95 <- function(x) {
 
 cat(" \n -------------------------------- summarise observed birth places -------------------------------- \n")
 
-infile.subgraphs <- file.path(args_dir$out_dir,'subgraphs_withmetadata.RDS')
-
 dsubgraphtaxa <- readRDS(infile.subgraphs)
 
 dsubgraphtaxa[,SG:= FULL_NAME]
 dsubgraphtaxa$SG <- as.factor(dsubgraphtaxa$SG)
 dsubgraphtaxa[!is.na(ST_CLADE),SG:= paste0(SG,'_',ST_CLADE)]
-# get min/max date of diagnosis date in subgraphs
-mind <- subset(dsubgraphtaxa,REP=='000')[,list(MIND=min(INF_D,na.rm=T),MAXD=max(INF_D,na.rm=T)),by=c('TRANSM','SG')]
-dsubgraphtaxa <- merge(dsubgraphtaxa,mind,by=c('TRANSM','SG'))
-start_y <- as.integer(substr(args_dir$period,1,4))
 
-# count chains which started before 2015
-dsubgraphtaxa$chaintype <- "pre-existing"
-dsubgraphtaxa$chaintype[dsubgraphtaxa$MIND>=start_y] <- "emergent"
+cat(paste0('\n Load subgraph classifications by ', args_dir$start_d, '\n'))
 
 if(args_dir$infdate==1){
-	dsubgraphtaxa[INF_D>=args_dir$start_d & INF_D<args_dir$end_d, keep:=1]
+	dc <- data.table(read.csv(infile.chaintype.infd, header=T))
 }else{
-	dsubgraphtaxa[HIV1_POS_D>=args_dir$start_d & HIV1_POS_D<args_dir$end_d, keep:=1]
+	dc <- data.table(read.csv(infile.chaintype.diagd, header=T))
 }
-dsubgraphtaxa <- subset(dsubgraphtaxa, REP=='000' & SELECT %in% c('AmsHSX','AmsMSM') & keep==1)
+dc[, ST2:= 'nonB']
+dc[ST=='B', ST2:= 'B']
+setnames(dc,c('ST','ST2'),c('ST2','ST'))
 
+dsubgraphtaxa <- merge(dsubgraphtaxa,dc,by=c('SELECT','NAME','FULL_NAME','ST','ST_CLADE'),all.x=T)
 
-geo <- data.table(read.csv('/rds/general/project/ratmann_roadmap_data_analysis/live/misc/NEWGEO.csv'))
-geo[geo$Alpha_2_code %in%c('AM','AZ','BY','GE','MD','RU','UA'),WRLD:='EEurope']
+# count chains which started before startd
+dsubgraphtaxa[period=='pre-startd', chaintype := "pre-existing"]
+dsubgraphtaxa[period=='post-startd', chaintype := "emergent"]
 
-load(file='/rds/general/project/ratmann_roadmap_data_analysis/live/analysis_200917/misc/200917_sequence_labels.rda')
-dseq <- merge(dseq,geo,by.x='ORIGIN',by.y='Alpha_2_code',all.x=T)
-setnames(dseq,'ORIGIN','BIRTH_COUNTRY_ISO')
-dsubgraphtaxa <- merge(dsubgraphtaxa,unique(subset(dseq,select=c('PATIENT','BIRTH_COUNTRY_ISO','WRLD'))),by.x='ID',by.y='PATIENT',all.x=T)
+# select patients in study window
+dsubgraphtaxa[inf_after_startd==1 & inf_after_endd==0, keep:=1]
 
-## msm
-dsubgraphtaxa[TRANSM=='MSM', mwmb:="Other"]
-dsubgraphtaxa[TRANSM=='MSM' & BIRTH_COUNTRY %in% c("Netherlands"), mwmb:="NL"]
-# western countires (non-NL)
-dsubgraphtaxa[TRANSM=='MSM' & WRLD %in% c("WEurope","NorthAm","Oceania") & BIRTH_COUNTRY!='Netherlands', mwmb:="G1"]
-# eastern and central europe
-dsubgraphtaxa[TRANSM=='MSM' & WRLD %in% c("EEurope", "CEurope"), mwmb:="G2"]
-# caribbean and south america
-dsubgraphtaxa[TRANSM=='MSM' & WRLD %in% c("LaAmCar","FormerCurrDutchColonies"), mwmb:="G3"]
+dsubgraphtaxa <- subset(dsubgraphtaxa, keep==1)
+dsubgraphtaxa[, TRANSM:= gsub('Ams','',SELECT)]
 
-## hsx
-dsubgraphtaxa[TRANSM=='HSX', mwmb:="Other"]
-dsubgraphtaxa[TRANSM=='HSX' & BIRTH_COUNTRY %in% c("Netherlands"), mwmb:="NL"]
-# sub-saharan africa
-dsubgraphtaxa[TRANSM=='HSX' & LOC_BIRTH %in% c("Africa"), mwmb:="G4"]
-# caribbean and south america
-dsubgraphtaxa[TRANSM=='HSX' & LOC_BIRTH %in% c("LaAmCar","FormerCurrDutchColonies"), mwmb:="G5"]
+# read in number of individuals by risk group and chaintype
+cases <- data.table(read.csv(infile.bplaces.trm.mwmb,header=T))
 
-cases <- dsubgraphtaxa[, list(N=length(unique(ID))),by=c('TRANSM','chaintype','mwmb')]
 cases_all <- dsubgraphtaxa[, list(N=length(unique(ID))),by=c('TRANSM','chaintype')]
 cases_all[,mwmb:='All']
 cases <- merge(cases,cases_all,by=c('TRANSM','chaintype','mwmb','N'),all=T)
@@ -195,14 +185,14 @@ cat(" \n -------------------------------- summarise predicted birth places -----
 bp.MSM <- as.data.table( reshape2::melt( fit.bplace.MSM ) )
 setnames(bp.MSM, 1:6, c('iteration','subtype','bplace','index_cases','N','chaintype'))
 bp.MSM[, trsm:='MSM']
-locs <- unique(dsubgraphtaxa$mwmb[dsubgraphtaxa$TRANSM=='MSM'])
+locs <- unique(cases$mwmb[cases$trsm=='MSM'])
 labs <- data.table(mwmb=sort(locs[locs!='All']),bplace=seq(1:length(locs[locs!='All'])))
 bp.MSM <- merge(bp.MSM, labs,by='bplace',all=T)
 
 bp.HSX <- as.data.table( reshape2::melt( fit.bplace.HSX ) )
 setnames(bp.HSX, 1:6, c('iteration','subtype','bplace','index_cases','N','chaintype'))
 bp.HSX[, trsm:='HSX']
-locs <- unique(dsubgraphtaxa$mwmb[dsubgraphtaxa$TRANSM=='HSX'])
+locs <- unique(cases$mwmb[cases$trsm=='HSX'])
 labs <- data.table(mwmb=sort(locs[locs!='All']),bplace=seq(1:length(locs[locs!='All'])))
 bp.HSX <- merge(bp.HSX, labs,by='bplace',all=T)
 
@@ -249,7 +239,6 @@ tmp2 <- tmp2[, list(mwmb='All',
 									  q_label=p_labs),by=c('trsm')]		
 
 bp <- merge(tmp,tmp2,by=c('trsm','mwmb','pre-existing','p_pre','emergent','p_em','Total','q_label'),all=T)
-#setnames(bp,'N','N_star')
 tmp <- copy(bp) # copy for figure
 
 bp <- dcast.data.table(bp, trsm+mwmb~q_label, value.var=c('pre-existing','p_pre','emergent','p_em','Total'))
@@ -261,9 +250,10 @@ bp[, emergent:= paste0( round(emergent_M, d=0), ' [',  round(emergent_CL, d=0),'
 bp[, p_em:= paste0( round(p_em_M*100, d=1), '% [',  round(p_em_CL*100, d=1),'-', round(p_em_CU*100, d=1),'%]')]
 
 bp <- subset(bp,select=c('trsm','mwmb','Total','pre-existing','p_pre','emergent','p_em'))
-bp <- merge(cases,bp,by=c('trsm','mwmb'),all=T)
-
-write.csv(bp,file=paste0(outfile.base,'-','birthplaces_cases.csv'))
+tab <- merge(cases,bp,by=c('trsm','mwmb'),all=T)
+tab[, trsm:= factor(trsm,levels=c('MSM','HSX'),labels=c('Amsterdam MSM','Amsterdam heterosexuals'))]
+tab <- tab[order(trsm),]
+write.csv(tab,file=paste0(outfile.base,'-','birthplaces_cases.csv'))
 
 
 ### plot
@@ -272,8 +262,6 @@ tmp <- dcast.data.table(tmp, trsm+mwmb+variable~q_label, value.var=c('value'))
 tmp[, analysis:='predicted']
 
 cases <- subset(cases,select=c('trsm','mwmb','pre-existing_o','emergent_o'))
-#cases <- melt(subset(cases,select=c('trsm','mwmb','pre-existing_o','emergent_o')), value.var=c('pre-existing_o','emergent_o'))
-#cases <- dcast(cases,trsm+mwmb~variable,value.var='value')
 cases <- melt(subset(cases,select=c('trsm','mwmb','pre-existing_o','emergent_o')), value.var=c('pre-existing_o','emergent_o'))
 
 cases[variable=='pre-existing_o',variable:='pre-existing']
@@ -318,7 +306,6 @@ order <- unique(subset(bp,select=c('trsm','mlab','mwmb_lab_trsm')))
 order <- order[order(trsm,mlab),]
 bp$mwmb_lab_trsm <- factor(bp$mwmb_lab_trsm,levels=unique(order$mwmb_lab_trsm))
 
-#do$mlab <- factor(do$mlab,levels=c('NL','W.Europe,\nN.America,\nOceania','E. & C. Europe','S. America &\n Caribbean','Sub-Saharan\nAfrica','Other'))
 bp$trsm <- factor(bp$trsm,levels=c('MSM','HSX'),labels=c('Amsterdam MSM','Amsterdam heterosexuals'))
 
 # make plot of where cases were from in pre-existing/emergent subgraphs

@@ -9,12 +9,12 @@ suppressMessages(library(ggsci, quietly = TRUE))
 # for testing
 if(0){
 	args_dir <- list()
-	args_dir[['stanModelFile']] <- 'branching_process_210810b_cmdstan'
+	args_dir[['stanModelFile']] <- 'branching_process_210810m_cmdstan'
 	args_dir[['analysis']] <- 'analysis_200917'
 	args_dir[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
-	args_dir[['trsm']] <- 'MSM'
+	args_dir[['trsm']] <- 'HSX'
 	args_dir[['period']] <- '2014-2018'
-	args_dir[['job_name']] <- 'undiagnosed_notrunc'
+	args_dir[['job_name']] <- 'undiagnosed_weighted_inf_rate'
 	args_dir[['job_tag']] <- paste0(args_dir[['job_name']],'_',args_dir[['period']],'_',args_dir[['trsm']])
 	args_dir[['out_dir']] <- paste0('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/',args_dir[['stanModelFile']],'-',args_dir[['job_tag']])
 	args_dir[['with_subtypes']] <- 1
@@ -105,8 +105,8 @@ obs_i[, analysis:='observed']
 obs_i[, P:='p0.5']
 
 cat('\nLoad predicted chain sizes...')
-cs_ex <- readRDS(file=paste0(outfile.base,'-','predicted_chains.rds'))
-cs_em <- readRDS(file=paste0(outfile.base,'-','unobserved_chains.rds'))
+cs_ex <- readRDS(file=paste0(outfile.base,'-','preexisting_chain_sizes.rds'))
+cs_em <- readRDS(file=paste0(outfile.base,'-','emergent_chain_sizes.rds'))
 dt <- rbind(cs_ex,cs_em)
 dt <- data.table(dt)
 dt[, analysis:="predicted"]
@@ -143,6 +143,32 @@ N_ind[, analysis:='predicted']
 N_ind <- merge(N_ind,obs_i,by=c('chains','analysis','P','QN_i'),all=T)
 N_c[, analysis:='predicted']
 N_c <- merge(N_c,obs_N,by=c('chains','analysis','P','QN_c'),all=T)
+# calculate % of growing chains which were pre-exisitng/emergent
+dg <- unique(subset(cs_act,select=c('iteration','chains','freq_tot_grew')))
+dg <- dcast(dg,iteration~chains,value.var='freq_tot_grew')
+dg <- dg[, list(iteration=iteration,
+								p_grew_ex=`pre-existing`/(`pre-existing`+emergent),
+								p_grew_em=emergent/(`pre-existing`+emergent))
+								]
+dg <- dg[, list(P=ps,
+								p_grew_ex=quantile(c(p_grew_ex, rep(0, total.replicates-length(p_grew_ex))), p=ps),
+								p_grew_em=quantile(c(p_grew_em, rep(0, total.replicates-length(p_grew_em))), p=ps))]
+dg <- dcast(dg,.~P,value.var=c('p_grew_ex','p_grew_em'))
+dg[, p_grew_ex:=paste0(round(p_grew_ex_0.5*100,1),
+											 '% [',
+											 round(p_grew_ex_0.025*100,1),
+											 '-',
+											 round(p_grew_ex_0.975*100,1),
+											 '%]')]
+dg[, p_grew_em:=paste0(round(p_grew_em_0.5*100,1),
+											 '% [',
+											 round(p_grew_em_0.025*100,1),
+											 '-',
+											 round(p_grew_em_0.975*100,1),
+											 '%]')]
+dg <- subset(dg,select=c('p_grew_ex','p_grew_em'))
+write.csv(dg,file=paste0(outfile.base,'-','pct_growing_chains_ex_em.csv'))
+
 
 ### merge
 all <- merge(ans,subset(obs,select=c('chains','analysis','new_cases','QN','tot','tot_grew','p','P')),by=c('chains','analysis','new_cases','tot','tot_grew','p','P','QN'),all=T)

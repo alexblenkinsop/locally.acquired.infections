@@ -3,7 +3,7 @@ require(data.table)
 hmc_chains_n <- 3
 
 ## important note:
-# the combination of stanModelFile and job_tag should be unique for each analysis
+# the combination of stanModelFile and job_tag should be unique for each analysis. job_tag should be the same for MSM and HSX model
 # all outputs with stanModelFile-job_tag are assumed to be several HMC chains run in parallel
 
 #	function to make PBS header
@@ -27,12 +27,12 @@ make.PBS.header <- function(hpc.walltime=23, hpc.select=1, hpc.nproc=8, hpc.mem=
   pbshead
 }
 
-# input args alex
+# input args
 if(1)
 {
   hpc.nproc.cmdstan <- 5	
   args <- data.table(
-    source_dir= '/rds/general/user/ablenkin/home/git/bpm',
+    source_dir= '/rds/general/user/ablenkin/home/git/locally.acquired.infections',
     cmdstan_dir = '/apps/cmdstan/2.33.0',
     in_dir='/rds/general/project/ratmann_roadmap_data_analysis/live',
     out_dir= '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model',
@@ -41,15 +41,15 @@ if(1)
     script_converting_file = "scripts/stan-convert-csv-to-rda.r",
     script_generate_quantities_file = "scripts/generate-quantities.R",
     script_rmd_file = "scripts/post-processing-make-report.Rmd",
-    stanModelFile= 'branching_process_210810b_cmdstan',
+    stanModelFile= 'branching_process_210810m_cmdstan',
     analysis= 'analysis_211101',
     hmc_stepsize= 0.25,
     hmc_num_samples= 2000,
     hmc_num_warmup= 500,			
     seed= 42,
     chain= 1,
-    job_tag= 'undiagnosed',
-    trsm= 'MSM',
+    job_tag= 'elife_paper',
+    trsm= 'HSX',
     cmdstan = 1L,
     max_index_cases = 22L,
     start_d = 2014,
@@ -58,42 +58,14 @@ if(1)
     infdate=1,
     nonB=1,
     sensitivity_infdate=0,
-    undiag_job='2010_2012_update'
+    undiag_job='undiagnosed_weighted_ECDC'
   )	
 }
-
-# input args melodie
-if(0)
-{
-  hpc.nproc.cmdstan <- 12
-  args <- data.table(
-    source_dir= '/rds/general/user/mm3218/home/git/bpm',
-    cmdstan_dir = '/apps/cmdstan/2.33.0',
-    in_dir='/rds/general/project/ratmann_roadmap_data_analysis/live',
-    out_dir= '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model',
-    report_dir = '/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/reports',
-    script_file= 'scripts/stan-make-data.r',
-    script_converting_file = "scripts/stan-convert-csv-to-rda.r",
-    script_generate_quantities_file = "scripts/generate-quantities.R",
-    script_rmd_file = "scripts/post-processing-make-report.Rmd",
-    stanModelFile= 'branching_process_201215a_cmdstan',
-    analysis= 'analysis_200917',
-    cmdstan = 1L,
-    hmc_stepsize= 0.25,
-    hmc_num_samples= 150,
-    hmc_num_warmup= 100,			
-    seed= 42,
-    chain= 1,
-    job_tag= 'testrun-mm-1',
-    trsm= 'MSM',
-    max_index_cases = 12L)	
-}
-
 
 if(1)
 {
   tmp <- data.table(chain=1:hmc_chains_n)		
-  tmp[, seed:= round(runif(seq_len(nrow(tmp)))*1e6)]		
+  tmp[, seed:= c(82525,735379,877954)]
   set(args, NULL, colnames(tmp), NULL)
   tmp[, dummy:= 1L]
   args[, dummy:= 1L]
@@ -118,7 +90,6 @@ for(i in seq_len(nrow(args)))
   tmp 			<- paste0('Rscript ', file.path(args$source_dir[i],args$script_file[i]), 
                    ' -source_dir "', args$source_dir[i],'"',
                    ' -stanModelFile "', args$stanModelFile[i],'"',
-                   ' -analysis "', args$analysis[i],'"',
                    ' -seed ', args$seed[i],
                    ' -chain ', args$chain[i],							
                    ' -indir ', args$in_dir[i],'',
@@ -285,6 +256,10 @@ for(i in seq_len(nrow(args)))
     # postprocessing summarise origins
     tmp <- paste0('Rscript ', file.path('$SCRIPT_DIR','scripts','post-processing-summarise-origins-chains.R'),
                   ' -stanModelFile $STAN_MODEL_FILE -analysis $ANALYSIS -in_dir $IN_DIR -out_dir $OUT_DIR -job_tag $JOB_TAG -trsm $TRSM -start_d $START_Y -end_d $END_Y -source_dir $SCRIPT_DIR')
+    cmd2 <- paste0(cmd2,tmp,'\n')
+    # postprocessing make phylogenetic subgraphs plot
+    tmp <- paste0('Rscript ', file.path('$SCRIPT_DIR','scripts','post-processing-figure-phylogenetic-subgraphs.R'),
+    							' -stanModelFile $STAN_MODEL_FILE -analysis $ANALYSIS -in_dir $IN_DIR -out_dir $OUT_DIR -job_tag $JOB_TAG -trsm $TRSM -start_d $START_Y -end_d $END_Y -source_dir $SCRIPT_DIR')
     cmd2 <- paste0(cmd2,tmp,'\n')
     # postprocessing make avidity assay plot
     tmp <- paste0('Rscript ', file.path('$SCRIPT_DIR','scripts','post-processing-make-plot-recent-infections.R'),

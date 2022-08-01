@@ -1,21 +1,14 @@
 cat(" \n -------------------------------- \n \n Running post-processing-combine-MSM-HSX-results.R\n \n -------------------------------- \n")
 
-suppressMessages(library(rstan, quietly = TRUE))
 suppressMessages(library(data.table, quietly = TRUE))
 suppressMessages(library(dplyr, quietly = TRUE))
-suppressMessages(library(bayesplot, quietly = TRUE))
-suppressMessages(library(ggplot2, quietly = TRUE))
-suppressMessages(library(ggpubr, quietly = TRUE))
-suppressMessages(library(viridis, quietly = TRUE))
-suppressMessages(library(forcats, quietly = TRUE))
-suppressMessages(library(ggsci, quietly = TRUE))
 
 args <- list()
-args[['source_dir']] <- '~/git/bpm'
+args[['source_dir']] <- '~/git/locally.acquired.infections'
 args[['in_dir']] <- '/rds/general/project/ratmann_roadmap_data_analysis/live'
 args[['stanModelFileMSM']] <- 'branching_process_210810b_cmdstan'
 args[['stanModelFileHSX']] <- 'branching_process_210810m_cmdstan'
-args[['job_name']] <- 'undiagnosed_weighted_inf_rate'
+args[['job_name']] <- 'elife_paper'
 args[['period']] <- '2014-2018'
 args[['start_d']] <- 2014
 args[['end_d']] <- 2019
@@ -85,18 +78,13 @@ tmp <- paste0('Rscript ', file.path('$SCRIPT_DIR','scripts','post-processing-mak
 							'" -period "', args$period ,'" -source_dir $SCRIPT_DIR')
 cmd2 <- paste0(cmd2,tmp,'\n')
 
-tmp <- paste0('Rscript ', file.path('$SCRIPT_DIR','scripts','post-processing-make-manuscript-figures.R'),
-							' -stanModelFileMSM "', args$stanModelFileMSM,'" -stanModelFileHSX "', args$stanModelFileHSX, '" -in_dir "', args$in_dir, '" -job_name "', args$job_name,				
-							'" -period "', args$period ,'" -start_d ', args$start_d ,' -end_d ', args$end_d ,'" -source_dir $SCRIPT_DIR')
-cmd2 <- paste0(cmd2,tmp,'\n')
-
 tmp <- paste0('Rscript ', file.path('$SCRIPT_DIR','scripts','post-processing-posterior_predictive_check_trsm_group.R'),
 							' -stanModelFileMSM "', args$stanModelFileMSM,'" -stanModelFileHSX "', args$stanModelFileHSX, '" -in_dir "', args$in_dir, '" -job_name "', args$job_name,				
 							'" -period "', args$period ,'" -source_dir $SCRIPT_DIR')
 cmd2 <- paste0(cmd2,tmp,'\n')
 
 # write submission file	
-tmpdir <- paste0('/rds/general/project/ratmann_roadmap_data_analysis/live/branching_process_model/',args$stanModelFileHSX,'-',args$job_name,'_',args$period,'_HSX')
+tmpdir <- paste0(args[['in_dir']],'/branching_process_model/',args$stanModelFileHSX,'-',args$job_name,'_',args$period,'_HSX')
 post.processing.file <- file.path(tmpdir, 'post_processing_combine_analyses.sh')
 cat(cmd2, file=post.processing.file)
 # set permissions

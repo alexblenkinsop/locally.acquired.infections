@@ -79,8 +79,8 @@ obs[,P:= 'p0.5']
 
 ################################################
 cat('\nSaving predicted chain sizes...')
-cs_ex <- readRDS(file=paste0(outfile.base,'-','predicted_chains.rds'))
-cs_em <- readRDS(file=paste0(outfile.base,'-','unobserved_chains.rds'))
+cs_ex <- readRDS(file=paste0(outfile.base,'-','preexisting_chain_sizes.rds'))
+cs_em <- readRDS(file=paste0(outfile.base,'-','emergent_chain_sizes.rds'))
 dt <- rbind(cs_ex,cs_em)
 dt <- data.table(dt)
 dt[, analysis:="predicted"]

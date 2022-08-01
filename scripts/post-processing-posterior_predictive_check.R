@@ -63,7 +63,6 @@ fit.csobs <- readRDS(file)
 
 cat(" \n -------------------------------- Reading data -------------------------------- \n")
 
-### Estimating importations
 ## read stanin
 cat('\nReading Stan input data...')
 infile.stanin <- list.files(args_dir$out_dir, pattern='stanin.RData$', recursive=TRUE)[1]
@@ -86,7 +85,6 @@ setnames(emergent, 1:5, c('iteration','subtype','subgraph','index_cases','new_ca
 existing[,chains:= 'existing']
 emergent[,chains:= 'emergent']
 
-
 existing <- subset(existing,is.finite(new_cases))
 existing <- subset(existing,new_cases>0)
 existing[chains=='existing', new_cases:=  new_cases - 1]
@@ -95,7 +93,6 @@ existing[, size:= index_cases + new_cases]
 emergent <- subset(emergent,is.finite(new_cases))
 emergent <- subset(emergent,new_cases>0)
 emergent[, size:= index_cases + new_cases]
-
 
 cs_obs_pr <- rbind(existing,emergent)
 
@@ -121,7 +118,7 @@ cs_obs[index_cases==0,chains:='emergent']
 cs_obs[,new_cases:= new_cases - 1]
 # only keep non-negative cases (shouldn't have any)
 cs_obs <- subset(cs_obs,new_cases>=0)
-# aggregate subgraphs post-2010 with the rest
+# aggregate subgraphs
 cs_obs <- cs_obs[, list(freq=sum(freq)),by=c('subtype','index_cases','new_cases','chains')]
 
 
@@ -169,19 +166,10 @@ pr <- tmp[, list(in_range=sum(in_range,na.rm=T),all=length(subtype[!is.na(in_ran
 pr[, p:=in_range/all]
 tmp <- merge(tmp,subset(pr,select=c('subtype','chains','p')),by=c('subtype','chains'),all.x=T)
 
-#dat <- subset(tmp,subtypes_name!='06cpx')
-#dat <- subset(dat,subtypes_name!='D')
-#if(args$trsm=='MSM'){
-#	dat <- subset(dat,subtypes_name!='G')
-#}
-#if(args$trsm=='HSX'){
-#	dat <- subset(dat,subtypes_name!='01AE')
-#}
-
 dat <- tmp
 dat$chains <- factor(dat$chains,levels=c('pre-existing','emergent'))
 
-plot <- ggplot(data=dat) +
+plot <- ggplot(data=subset(dat)) +
 	geom_bar(aes(x=new_cases,y=p0.5,fill=analysis),stat='identity', position = "dodge") +
 	geom_errorbar(aes(x=new_cases,ymin=p0.025, ymax=p0.975,fill=analysis),position=position_dodge(width=0.9), width=0.5, colour="black")	+
 	geom_text(aes(12, N,label=paste("N= ", N, "p=", round(p,2)))) +
@@ -196,7 +184,7 @@ plot <- ggplot(data=dat) +
 ggsave(file=paste0(outfile.base,'-posteriorpredictivecheck_newcases_bysubtype_chaintype.png'),plot,w=10, h=12)
 
 
-plot <- ggplot(data=subset(dat,analysis!='predicted')) +
+plot <- ggplot(data=dat) +
 	geom_bar(aes(x=new_cases,y=p0.5,fill=analysis),stat='identity', position = "dodge") +
 	geom_errorbar(aes(x=new_cases,ymin=p0.025, ymax=p0.975,fill=analysis),position=position_dodge(width=0.9), width=0.5, colour="black")	+
 	geom_text(aes(12, 25,label=paste("N= ", N))) +
@@ -215,6 +203,8 @@ saveRDS(dat,paste0(outfile.base,'-posteriorpredictivecheck.RDS'))
 
 
 cat(" \n -------------------------------- Re-do aggregating over subtypes -------------------------------- \n")
+existing <- fit.csobs$obs_cs_pre 
+emergent <- fit.csobs$obs_cs_post 
 
 existing <- as.data.table( reshape2::melt( existing ) )
 setnames(existing, 1:5, c('iteration','subtype','subgraph','index_cases','new_cases'))
@@ -225,7 +215,6 @@ setnames(emergent, 1:5, c('iteration','subtype','subgraph','index_cases','new_ca
 existing[,chains:= 'existing']
 emergent[,chains:= 'emergent']
 
-
 existing <- subset(existing,is.finite(new_cases))
 existing <- subset(existing,new_cases>0)
 existing[chains=='existing', new_cases:=  new_cases - 1]
@@ -235,9 +224,7 @@ emergent <- subset(emergent,is.finite(new_cases))
 emergent <- subset(emergent,new_cases>0)
 emergent[, size:= index_cases + new_cases]
 
-
 cs_obs_pr <- rbind(existing,emergent)
-
 
 cat('\nSummarising observed subgraphs...')
 
@@ -252,7 +239,7 @@ cs_obs[index_cases==0,chains:='emergent']
 cs_obs[,new_cases:= new_cases - 1]
 # only keep non-negative cases (shouldn't have any)
 cs_obs <- subset(cs_obs,new_cases>=0)
-# aggregate subgraphs post-2010 with the rest
+# aggregate subgraphs
 cs_obs <- cs_obs[, list(freq=sum(freq)),by=c('subtype','index_cases','new_cases','chains')]
 
 
