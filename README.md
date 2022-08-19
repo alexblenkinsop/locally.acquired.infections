@@ -5,19 +5,19 @@ This repository includes code and partial data for the analyses in [Blenkinsop, 
 ## Data
 The data folder contains subfolders with the following input files:
 * trees
-		* reconstructed phylogenetic trees labelled with risk group and year of sequence sample
+    * reconstructed phylogenetic trees labelled with risk group and year of sequence sample
 * subgraphs
-		* Amsterdam subgraphs extracted from trees
+    * Amsterdam subgraphs extracted from trees
 * subgraph_metatadata
-		* classification of subgraphs as pre-existing by 2014 or emergent since 2014
+    * classification of subgraphs as pre-existing by 2014 or emergent since 2014
 * patient data
-		* file containing a flag to indicate whether patient ID was virally suppressed by 2014
-		* file containing a flag to indicate whether a patient had an estimated infection date after 2014
-		* number of diagnosed individuals estimated to have been infected since 2014 by transmission risk group and place of birth
-		* number of sequenced individuals estimated to have been infected since 2014 by transmission risk group, place of birth and HIV subtype
+    * file containing a flag to indicate whether patient ID was virally suppressed by 2014
+    * file containing a flag to indicate whether a patient had an estimated infection date after 2014
+    * number of diagnosed individuals estimated to have been infected since 2014 by transmission risk group and place of birth
+    * number of sequenced individuals estimated to have been infected since 2014 by transmission risk group, place of birth and HIV subtype
 * infection times
-		* estimated time-to-diagnosis data by risk group and migrant group
-        * estimated infected individuals by year for MSM/non-MSM in Amsterdam from the European Centres for Disease Control (ECDC) HIV modelling tool
+    * estimated time-to-diagnosis data by risk group and migrant group
+    * estimated infected individuals by year for MSM/non-MSM in Amsterdam from the European Centres for Disease Control (ECDC) HIV modelling tool
 
 
 ## Code
