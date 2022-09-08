@@ -1,6 +1,6 @@
 # Estimating the potential to prevent locally acquired HIV infections in a UNAIDS Fast-Track City, Amsterdam
 
-This repository includes code and partial data for the analyses in [Blenkinsop, Monod, van Sighem et al. (2022)](https://doi.org/10.7554/eLife.76487) [![DOI](https://zenodo.org/badge/504520616.svg)](https://zenodo.org/badge/latestdoi/504520616)
+This repository includes code and partial data for the analyses in Blenkinsop, Monod, van Sighem et al. eLife (2022)[https://doi.org/10.7554/eLife.76487](https://doi.org/10.7554/eLife.76487) [![DOI](https://zenodo.org/badge/504520616.svg)](https://zenodo.org/badge/latestdoi/504520616)
 
 ## Data
 The data folder contains subfolders with the following input files:
